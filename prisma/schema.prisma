@@ -1,0 +1,335 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "./ERD.svg"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Role {
+  ADMIN
+  EMPLEADO
+}
+
+enum StageChangeStatus {
+  PENDIENTE // Empleado solicitó cambio, esperando aprobación
+  APROBADO  // Admin aprobó el cambio
+  RECHAZADO // Admin rechazó el cambio
+}
+
+enum NotificationType {
+  ACTIVIDAD_ASIGNADA
+  SOLICITUD_CAMBIO_ETAPA
+  CAMBIO_ETAPA_APROBADO
+  CAMBIO_ETAPA_RECHAZADO
+  NUEVO_COMENTARIO
+  PROYECTO_ACTUALIZADO
+}
+
+// ============================================
+// USUARIOS Y AUTENTICACIÓN
+// ============================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(EMPLEADO)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  assignedActivities       ActivityAssignment[]
+  comments                 Comment[]
+  stageChangeRequests      StageChangeRequest[]  @relation("RequestedBy")
+  stageChangeReviews       StageChangeRequest[]  @relation("ReviewedBy")
+  stageChangeComments      StageChangeComment[]
+  notifications            Notification[]
+  uploadedFiles            File[]
+
+  @@map("users")
+}
+
+// ============================================
+// PROYECTOS
+// ============================================
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  activities Activity[]
+
+  @@map("projects")
+}
+
+// ============================================
+// ETAPAS (Configurables por el admin)
+// ============================================
+
+model Stage {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  order       Int      // Para ordenar las etapas secuencialmente
+  color       String?  // Color para UI (ej: #FF5733)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  activitiesCurrent     Activity[]           @relation("CurrentStage")
+  stageHistory          ActivityStageHistory[]
+  stageChangeFroms      StageChangeRequest[] @relation("FromStage")
+  stageChangeTos        StageChangeRequest[] @relation("ToStage")
+
+  @@map("stages")
+}
+
+// ============================================
+// ACTIVIDADES
+// ============================================
+
+model Activity {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  priority    Int       @default(1) // 1: baja, 2: media, 3: alta
+  dueDate     DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relaciones
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  currentStageId String
+  currentStage   Stage @relation("CurrentStage", fields: [currentStageId], references: [id])
+
+  assignments         ActivityAssignment[]
+  stageHistory        ActivityStageHistory[]
+  comments            Comment[]
+  stageChangeRequests StageChangeRequest[]
+  files               File[]
+
+  @@index([projectId])
+  @@index([currentStageId])
+  @@map("activities")
+}
+
+// ============================================
+// HISTORIAL DE ETAPAS (Muchos a muchos Activity <-> Stage)
+// ============================================
+
+model ActivityStageHistory {
+  id        String   @id @default(uuid())
+  enteredAt DateTime @default(now()) // Cuando entró a esta etapa
+  exitedAt  DateTime? // Cuando salió de esta etapa (null si es la actual)
+  notes     String?   // Notas opcionales sobre el cambio
+
+  // Relaciones
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  stageId String
+  stage   Stage @relation(fields: [stageId], references: [id])
+
+  @@index([activityId])
+  @@index([stageId])
+  @@index([enteredAt])
+  @@map("activity_stage_history")
+}
+
+// ============================================
+// ASIGNACIÓN DE ACTIVIDADES (Muchos a muchos)
+// ============================================
+
+model ActivityAssignment {
+  id         String   @id @default(uuid())
+  assignedAt DateTime @default(now())
+
+  // Relaciones
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityId])
+  @@index([userId])
+  @@index([activityId])
+  @@map("activity_assignments")
+}
+
+// ============================================
+// SOLICITUDES DE CAMBIO DE ETAPA
+// ============================================
+
+model StageChangeRequest {
+  id          String            @id @default(uuid())
+  description String            // Descripción del empleado sobre el cambio
+  status      StageChangeStatus @default(PENDIENTE)
+  reviewedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  fromStageId String
+  fromStage   Stage @relation("FromStage", fields: [fromStageId], references: [id])
+
+  toStageId String
+  toStage   Stage @relation("ToStage", fields: [toStageId], references: [id])
+
+  requestedById String
+  requestedBy   User @relation("RequestedBy", fields: [requestedById], references: [id])
+
+  reviewedById String?
+  reviewedBy   User? @relation("ReviewedBy", fields: [reviewedById], references: [id])
+
+  // Comentarios/respuestas de la solicitud (conversación)
+  comments StageChangeComment[]
+
+  // Archivos adjuntos a la solicitud inicial
+  files File[]
+
+  @@index([activityId])
+  @@index([status])
+  @@index([requestedById])
+  @@map("stage_change_requests")
+}
+
+// ============================================
+// COMENTARIOS EN SOLICITUDES DE CAMBIO DE ETAPA
+// (Permite conversación entre empleado y admin)
+// ============================================
+
+model StageChangeComment {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  stageChangeRequestId String
+  stageChangeRequest   StageChangeRequest @relation(fields: [stageChangeRequestId], references: [id], onDelete: Cascade)
+
+  // Archivos adjuntos al comentario
+  files File[]
+
+  @@index([stageChangeRequestId])
+  @@index([userId])
+  @@map("stage_change_comments")
+}
+
+// ============================================
+// COMENTARIOS EN ACTIVIDADES
+// ============================================
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  // Archivos adjuntos al comentario
+  files File[]
+
+  @@index([activityId])
+  @@index([userId])
+  @@map("comments")
+}
+
+// ============================================
+// ARCHIVOS
+// ============================================
+
+model File {
+  id           String   @id @default(uuid())
+  originalName String   // Nombre original del archivo
+  storedName   String   // Nombre almacenado (único)
+  mimeType     String   // Tipo MIME (image/png, application/pdf, etc.)
+  size         Int      // Tamaño en bytes
+  path         String   // Ruta de almacenamiento
+  createdAt    DateTime @default(now())
+
+  // Quien subió el archivo
+  uploadedById String
+  uploadedBy   User @relation(fields: [uploadedById], references: [id])
+
+  // Un archivo pertenece a UNO de estos (relación polimórfica)
+  activityId String?
+  activity   Activity? @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  stageChangeRequestId String?
+  stageChangeRequest   StageChangeRequest? @relation(fields: [stageChangeRequestId], references: [id], onDelete: Cascade)
+
+  stageChangeCommentId String?
+  stageChangeComment   StageChangeComment? @relation(fields: [stageChangeCommentId], references: [id], onDelete: Cascade)
+
+  @@index([activityId])
+  @@index([commentId])
+  @@index([stageChangeRequestId])
+  @@index([stageChangeCommentId])
+  @@map("files")
+}
+
+// ============================================
+// NOTIFICACIONES
+// ============================================
+
+model Notification {
+  id        String           @id @default(uuid())
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  metadata  Json?            // Datos adicionales (IDs relacionados, etc.)
+  createdAt DateTime         @default(now())
+
+  // Relaciones
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
