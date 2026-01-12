@@ -24,9 +24,23 @@ enum Role {
   EMPLEADO
 }
 
+enum Priority {
+  BAJA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+enum ProjectStatus {
+  EN_PROGRESO
+  PAUSADO
+  COMPLETADO
+  CANCELADO
+}
+
 enum StageChangeStatus {
   PENDIENTE // Empleado solicitó cambio, esperando aprobación
-  APROBADO  // Admin aprobó el cambio
+  APROBADO // Admin aprobó el cambio
   RECHAZADO // Admin rechazó el cambio
 }
 
@@ -39,30 +53,133 @@ enum NotificationType {
   PROYECTO_ACTUALIZADO
 }
 
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  STAGE_CHANGE_REQUEST
+  STAGE_CHANGE_APPROVED
+  STAGE_CHANGE_REJECTED
+  ASSIGNMENT_CREATED
+  ASSIGNMENT_REMOVED
+}
+
 // ============================================
 // USUARIOS Y AUTENTICACIÓN
 // ============================================
 
 model User {
+  id          String    @id @default(uuid())
+  email       String    @unique
+  password    String
+  name        String
+  phone       String? // Teléfono de contacto
+  avatar      String? // URL o path de la foto de perfil
+  role        Role      @default(EMPLEADO)
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime? // Último acceso
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relaciones
+  assignedActivities  ActivityAssignment[]
+  comments            Comment[]
+  stageChangeRequests StageChangeRequest[] @relation("RequestedBy")
+  stageChangeReviews  StageChangeRequest[] @relation("ReviewedBy")
+  stageChangeComments StageChangeComment[]
+  notifications       Notification[]
+  uploadedFiles       File[]
+  refreshTokens       RefreshToken[]
+  auditLogs           AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime? // Si fue revocado antes de expirar
+
+  // Relaciones
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// ============================================
+// TIPOS DE PROYECTO (Configurables por admin)
+// ============================================
+
+model ProjectType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  color       String? // Color para UI
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  projects Project[]
+
+  @@map("project_types")
+}
+
+// ============================================
+// TAGS (Para proyectos y actividades)
+// ============================================
+
+model Tag {
   id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @default(EMPLEADO)
-  isActive  Boolean  @default(true)
+  name      String   @unique
+  color     String? // Color para UI (ej: #3B82F6)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relaciones
-  assignedActivities       ActivityAssignment[]
-  comments                 Comment[]
-  stageChangeRequests      StageChangeRequest[]  @relation("RequestedBy")
-  stageChangeReviews       StageChangeRequest[]  @relation("ReviewedBy")
-  stageChangeComments      StageChangeComment[]
-  notifications            Notification[]
-  uploadedFiles            File[]
+  projects   ProjectTag[]
+  activities ActivityTag[]
 
-  @@map("users")
+  @@map("tags")
+}
+
+model ProjectTag {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tagId String
+  tag   Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, tagId])
+  @@index([projectId])
+  @@index([tagId])
+  @@map("project_tags")
+}
+
+model ActivityTag {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  tagId String
+  tag   Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, tagId])
+  @@index([activityId])
+  @@index([tagId])
+  @@map("activity_tags")
 }
 
 // ============================================
@@ -70,16 +187,25 @@ model User {
 // ============================================
 
 model Project {
-  id          String   @id @default(uuid())
+  id          String        @id @default(uuid())
   name        String
   description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      ProjectStatus @default(EN_PROGRESO)
+  startDate   DateTime? // Fecha de inicio planificada
+  endDate     DateTime? // Fecha de fin planificada
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   // Relaciones
-  activities Activity[]
+  projectTypeId String?
+  projectType   ProjectType? @relation(fields: [projectTypeId], references: [id])
 
+  activities Activity[]
+  tags       ProjectTag[]
+
+  @@index([projectTypeId])
+  @@index([status])
   @@map("projects")
 }
 
@@ -91,17 +217,17 @@ model Stage {
   id          String   @id @default(uuid())
   name        String   @unique
   description String?
-  order       Int      // Para ordenar las etapas secuencialmente
-  color       String?  // Color para UI (ej: #FF5733)
+  order       Int // Para ordenar las etapas secuencialmente
+  color       String? // Color para UI (ej: #FF5733)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relaciones
-  activitiesCurrent     Activity[]           @relation("CurrentStage")
-  stageHistory          ActivityStageHistory[]
-  stageChangeFroms      StageChangeRequest[] @relation("FromStage")
-  stageChangeTos        StageChangeRequest[] @relation("ToStage")
+  activitiesCurrent Activity[]             @relation("CurrentStage")
+  stageHistory      ActivityStageHistory[]
+  stageChangeFroms  StageChangeRequest[]   @relation("FromStage")
+  stageChangeTos    StageChangeRequest[]   @relation("ToStage")
 
   @@map("stages")
 }
@@ -114,7 +240,7 @@ model Activity {
   id          String    @id @default(uuid())
   title       String
   description String?
-  priority    Int       @default(1) // 1: baja, 2: media, 3: alta
+  priority    Priority  @default(MEDIA)
   dueDate     DateTime?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
@@ -125,17 +251,46 @@ model Activity {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   currentStageId String
-  currentStage   Stage @relation("CurrentStage", fields: [currentStageId], references: [id])
+  currentStage   Stage  @relation("CurrentStage", fields: [currentStageId], references: [id])
 
   assignments         ActivityAssignment[]
   stageHistory        ActivityStageHistory[]
   comments            Comment[]
   stageChangeRequests StageChangeRequest[]
   files               File[]
+  tags                ActivityTag[]
+
+  // Dependencias entre actividades
+  dependsOn  ActivityDependency[] @relation("DependentActivity")
+  dependedBy ActivityDependency[] @relation("RequiredActivity")
 
   @@index([projectId])
   @@index([currentStageId])
+  @@index([priority])
   @@map("activities")
+}
+
+// ============================================
+// DEPENDENCIAS ENTRE ACTIVIDADES
+// (Una actividad puede depender de otras)
+// ============================================
+
+model ActivityDependency {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  // La actividad que depende (está bloqueada)
+  dependentActivityId String
+  dependentActivity   Activity @relation("DependentActivity", fields: [dependentActivityId], references: [id], onDelete: Cascade)
+
+  // La actividad requerida (debe completarse primero)
+  requiredActivityId String
+  requiredActivity   Activity @relation("RequiredActivity", fields: [requiredActivityId], references: [id], onDelete: Cascade)
+
+  @@unique([dependentActivityId, requiredActivityId])
+  @@index([dependentActivityId])
+  @@index([requiredActivityId])
+  @@map("activity_dependencies")
 }
 
 // ============================================
@@ -143,17 +298,17 @@ model Activity {
 // ============================================
 
 model ActivityStageHistory {
-  id        String   @id @default(uuid())
-  enteredAt DateTime @default(now()) // Cuando entró a esta etapa
+  id        String    @id @default(uuid())
+  enteredAt DateTime  @default(now()) // Cuando entró a esta etapa
   exitedAt  DateTime? // Cuando salió de esta etapa (null si es la actual)
-  notes     String?   // Notas opcionales sobre el cambio
+  notes     String? // Notas opcionales sobre el cambio
 
   // Relaciones
   activityId String
   activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
   stageId String
-  stage   Stage @relation(fields: [stageId], references: [id])
+  stage   Stage  @relation(fields: [stageId], references: [id])
 
   @@index([activityId])
   @@index([stageId])
@@ -171,7 +326,7 @@ model ActivityAssignment {
 
   // Relaciones
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   activityId String
   activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
@@ -187,10 +342,11 @@ model ActivityAssignment {
 // ============================================
 
 model StageChangeRequest {
-  id          String            @id @default(uuid())
-  description String            // Descripción del empleado sobre el cambio
-  status      StageChangeStatus @default(PENDIENTE)
-  reviewedAt  DateTime?
+  id            String            @id @default(uuid())
+  description   String // Descripción del empleado sobre el cambio
+  status        StageChangeStatus @default(PENDIENTE)
+  reviewComment String? // Comentario del admin al revisar
+  reviewedAt    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -200,16 +356,16 @@ model StageChangeRequest {
   activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
   fromStageId String
-  fromStage   Stage @relation("FromStage", fields: [fromStageId], references: [id])
+  fromStage   Stage  @relation("FromStage", fields: [fromStageId], references: [id])
 
   toStageId String
-  toStage   Stage @relation("ToStage", fields: [toStageId], references: [id])
+  toStage   Stage  @relation("ToStage", fields: [toStageId], references: [id])
 
   requestedById String
-  requestedBy   User @relation("RequestedBy", fields: [requestedById], references: [id])
+  requestedBy   User   @relation("RequestedBy", fields: [requestedById], references: [id])
 
   reviewedById String?
-  reviewedBy   User? @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewedBy   User?   @relation("ReviewedBy", fields: [reviewedById], references: [id])
 
   // Comentarios/respuestas de la solicitud (conversación)
   comments StageChangeComment[]
@@ -236,7 +392,7 @@ model StageChangeComment {
 
   // Relaciones
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   stageChangeRequestId String
   stageChangeRequest   StageChangeRequest @relation(fields: [stageChangeRequestId], references: [id], onDelete: Cascade)
@@ -261,7 +417,7 @@ model Comment {
 
   // Relaciones
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   activityId String
   activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
@@ -280,16 +436,16 @@ model Comment {
 
 model File {
   id           String   @id @default(uuid())
-  originalName String   // Nombre original del archivo
-  storedName   String   // Nombre almacenado (único)
-  mimeType     String   // Tipo MIME (image/png, application/pdf, etc.)
-  size         Int      // Tamaño en bytes
-  path         String   // Ruta de almacenamiento
+  originalName String // Nombre original del archivo
+  storedName   String // Nombre almacenado (único)
+  mimeType     String // Tipo MIME (image/png, application/pdf, etc.)
+  size         Int // Tamaño en bytes
+  path         String // Ruta de almacenamiento
   createdAt    DateTime @default(now())
 
   // Quien subió el archivo
   uploadedById String
-  uploadedBy   User @relation(fields: [uploadedById], references: [id])
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
 
   // Un archivo pertenece a UNO de estos (relación polimórfica)
   activityId String?
@@ -308,6 +464,7 @@ model File {
   @@index([commentId])
   @@index([stageChangeRequestId])
   @@index([stageChangeCommentId])
+  @@index([uploadedById])
   @@map("files")
 }
 
@@ -321,15 +478,42 @@ model Notification {
   title     String
   message   String
   isRead    Boolean          @default(false)
-  metadata  Json?            // Datos adicionales (IDs relacionados, etc.)
+  metadata  Json? // Datos adicionales (IDs relacionados, etc.)
   createdAt DateTime         @default(now())
 
   // Relaciones
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([isRead])
   @@index([createdAt])
   @@map("notifications")
+}
+
+// ============================================
+// AUDIT LOG (Registro de acciones)
+// ============================================
+
+model AuditLog {
+  id         String      @id @default(uuid())
+  action     AuditAction
+  entityType String // Nombre de la entidad (Project, Activity, etc.)
+  entityId   String // ID de la entidad afectada
+  oldData    Json? // Estado anterior (para updates/deletes)
+  newData    Json? // Estado nuevo (para creates/updates)
+  ipAddress  String? // IP del usuario
+  userAgent  String? // Navegador/cliente
+  createdAt  DateTime    @default(now())
+
+  // Relaciones
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
