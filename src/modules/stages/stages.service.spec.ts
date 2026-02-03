@@ -57,6 +57,7 @@ describe('StagesService', () => {
         order: 1,
       };
 
+      mockPrismaService.stage.findUnique.mockResolvedValue(null);
       mockPrismaService.stage.create.mockResolvedValue({
         ...mockStage,
         ...createDto,
@@ -66,6 +67,19 @@ describe('StagesService', () => {
 
       expect(result).toBeDefined();
       expect(mockPrismaService.stage.create).toHaveBeenCalled();
+    });
+
+    it('should throw ConflictException if name already exists', async () => {
+      const createDto = {
+        name: 'En Proceso',
+        description: 'Descripción',
+        color: '#FF5733',
+        order: 1,
+      };
+
+      mockPrismaService.stage.findUnique.mockResolvedValue(mockStage);
+
+      await expect(service.create(createDto)).rejects.toThrow(ConflictException);
     });
   });
 

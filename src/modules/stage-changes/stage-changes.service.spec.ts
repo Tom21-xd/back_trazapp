@@ -24,6 +24,7 @@ describe('StageChangesService', () => {
     },
     activityStageHistory: {
       updateMany: jest.fn(),
+      update: jest.fn(),
       create: jest.fn(),
       findFirst: jest.fn(),
     },
@@ -157,21 +158,17 @@ describe('StageChangesService', () => {
       mockPrismaService.stageChangeRequest.findUnique.mockResolvedValue(
         mockStageChangeRequest,
       );
-      mockPrismaService.$transaction.mockImplementation(async (callback) => {
-        return callback(mockPrismaService);
-      });
       mockPrismaService.activityStageHistory.findFirst.mockResolvedValue({
         id: 'history1',
         activityId: 'activity1',
         stageId: 'stage1',
         exitedAt: null,
       });
-      mockPrismaService.activityStageHistory.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaService.activityStageHistory.update.mockResolvedValue({});
       mockPrismaService.activity.update.mockResolvedValue({
         id: 'activity1',
         currentStageId: 'stage2',
       });
-      mockPrismaService.activityStageHistory.create.mockResolvedValue({});
       mockPrismaService.stageChangeRequest.update.mockResolvedValue({
         ...mockStageChangeRequest,
         status: StageChangeStatus.APROBADO,

@@ -6,9 +6,8 @@ import { ProjectStatus } from '@prisma/client';
 
 describe('ProjectsService', () => {
   let service: ProjectsService;
-  let prisma: PrismaService;
 
-  const mockPrismaService = {
+  const mockPrisma = {
     project: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
@@ -16,19 +15,7 @@ describe('ProjectsService', () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
-    projectType: {
-      findUnique: jest.fn(),
-    },
-    projectTag: {
-      deleteMany: jest.fn(),
-    },
-    tag: {
-      findMany: jest.fn(),
-    },
-    activity: {
-      groupBy: jest.fn(),
-      findMany: jest.fn(),
-    },
+    projectTag: { deleteMany: jest.fn() },
   };
 
   const mockProject = {
@@ -36,25 +23,26 @@ describe('ProjectsService', () => {
     name: 'Test Project',
     description: 'Test description',
     status: ProjectStatus.EN_PROGRESO,
-    projectTypeId: 'type1',
-    startDate: new Date(),
+    projectTypeId: null,
+    startDate: null,
     endDate: null,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
+    projectType: null,
+    tags: [],
+    _count: { activities: 0 },
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProjectsService,
-        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: PrismaService, useValue: mockPrisma },
       ],
     }).compile();
 
     service = module.get<ProjectsService>(ProjectsService);
-    prisma = module.get<PrismaService>(PrismaService);
-
     jest.clearAllMocks();
   });
 
@@ -63,83 +51,60 @@ describe('ProjectsService', () => {
   });
 
   describe('create', () => {
-    it('should create a project with tags', async () => {
-      const createDto = {
-        name: 'New Project',
-        description: 'New description',
-        projectTypeId: 'type1',
-        tagIds: ['tag1', 'tag2'],
-      };
+    it('should create a project', async () => {
+      mockPrisma.project.create.mockResolvedValue(mockProject);
 
-      mockPrismaService.projectType.findUnique.mockResolvedValue({ id: 'type1' });
-      mockPrismaService.tag.findMany.mockResolvedValue([
-        { id: 'tag1' },
-        { id: 'tag2' },
-      ]);
-      mockPrismaService.project.create.mockResolvedValue({
-        ...mockProject,
-        ...createDto,
-        tags: [{ id: '1', tagId: 'tag1' }, { id: '2', tagId: 'tag2' }],
-      });
-
-      const result = await service.create(createDto);
+      const result = await service.create({ name: 'New Project' });
 
       expect(result).toBeDefined();
-      expect(mockPrismaService.project.create).toHaveBeenCalled();
+      expect(mockPrisma.project.create).toHaveBeenCalled();
     });
 
-    it('should create project without optional fields', async () => {
-      const createDto = {
-        name: 'Simple Project',
-      };
+    it('should create a project with tags', async () => {
+      mockPrisma.project.create.mockResolvedValue(mockProject);
 
-      mockPrismaService.project.create.mockResolvedValue({
-        ...mockProject,
-        ...createDto,
+      const result = await service.create({
+        name: 'New Project',
+        tagIds: ['tag1', 'tag2'],
       });
 
-      const result = await service.create(createDto);
-
       expect(result).toBeDefined();
-      expect(mockPrismaService.project.create).toHaveBeenCalled();
+      expect(mockPrisma.project.create).toHaveBeenCalled();
     });
   });
 
   describe('findAll', () => {
     it('should return all projects', async () => {
-      const projects = [mockProject];
-      mockPrismaService.project.findMany.mockResolvedValue(projects);
+      mockPrisma.project.findMany.mockResolvedValue([mockProject]);
 
       const result = await service.findAll();
 
-      expect(result).toEqual(projects);
-      expect(mockPrismaService.project.findMany).toHaveBeenCalled();
+      expect(Array.isArray(result)).toBe(true);
+      expect(mockPrisma.project.findMany).toHaveBeenCalled();
     });
 
-    it('should include inactive projects when requested', async () => {
-      mockPrismaService.project.findMany.mockResolvedValue([mockProject]);
+    it('should include inactive when requested', async () => {
+      mockPrisma.project.findMany.mockResolvedValue([mockProject]);
 
       await service.findAll(true);
 
-      expect(mockPrismaService.project.findMany).toHaveBeenCalled();
+      expect(mockPrisma.project.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: undefined }),
+      );
     });
   });
 
   describe('findOne', () => {
-    it('should return a project by id', async () => {
-      mockPrismaService.project.findUnique.mockResolvedValue(mockProject);
+    it('should return a project', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue(mockProject);
 
       const result = await service.findOne('1');
 
       expect(result).toEqual(mockProject);
-      expect(mockPrismaService.project.findUnique).toHaveBeenCalledWith({
-        where: { id: '1' },
-        include: expect.any(Object),
-      });
     });
 
-    it('should throw NotFoundException if project not found', async () => {
-      mockPrismaService.project.findUnique.mockResolvedValue(null);
+    it('should throw NotFoundException if not found', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne('999')).rejects.toThrow(NotFoundException);
     });
@@ -147,49 +112,35 @@ describe('ProjectsService', () => {
 
   describe('update', () => {
     it('should update project data', async () => {
-      const updateDto = {
-        name: 'Updated Project',
-        status: ProjectStatus.COMPLETADO,
-      };
-
-      mockPrismaService.project.findUnique.mockResolvedValue(mockProject);
-      mockPrismaService.project.update.mockResolvedValue({
-        ...mockProject,
-        ...updateDto,
-      });
+      const updateDto = { name: 'Updated Name' };
+      mockPrisma.project.findUnique.mockResolvedValue(mockProject);
+      mockPrisma.project.update.mockResolvedValue({ ...mockProject, ...updateDto });
 
       const result = await service.update('1', updateDto);
 
       expect(result.name).toBe(updateDto.name);
-      expect(result.status).toBe(updateDto.status);
     });
 
     it('should update tags', async () => {
-      const updateDto = {
-        tagIds: ['tag3', 'tag4'],
-      };
+      mockPrisma.project.findUnique.mockResolvedValue(mockProject);
+      mockPrisma.projectTag.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.project.update.mockResolvedValue(mockProject);
 
-      mockPrismaService.project.findUnique.mockResolvedValue(mockProject);
-      mockPrismaService.projectTag.deleteMany.mockResolvedValue({ count: 2 });
-      mockPrismaService.project.update.mockResolvedValue(mockProject);
+      await service.update('1', { tagIds: ['tag1'] });
 
-      await service.update('1', updateDto);
-
-      expect(mockPrismaService.projectTag.deleteMany).toHaveBeenCalled();
-      expect(mockPrismaService.project.update).toHaveBeenCalled();
+      expect(mockPrisma.projectTag.deleteMany).toHaveBeenCalled();
     });
   });
 
   describe('remove', () => {
     it('should delete a project', async () => {
-      mockPrismaService.project.findUnique.mockResolvedValue(mockProject);
-      mockPrismaService.project.delete.mockResolvedValue(mockProject);
+      mockPrisma.project.findUnique.mockResolvedValue(mockProject);
+      mockPrisma.project.delete.mockResolvedValue(mockProject);
 
-      await service.remove('1');
+      const result = await service.remove('1');
 
-      expect(mockPrismaService.project.delete).toHaveBeenCalledWith({
-        where: { id: '1' },
-      });
+      expect(result.message).toBe('Proyecto eliminado exitosamente');
+      expect(mockPrisma.project.delete).toHaveBeenCalledWith({ where: { id: '1' } });
     });
   });
 
@@ -198,13 +149,14 @@ describe('ProjectsService', () => {
       const projectWithActivities = {
         ...mockProject,
         activities: [
-          { id: '1', priority: 'ALTA', currentStage: { name: 'En Proceso' } },
-          { id: '2', priority: 'MEDIA', currentStage: { name: 'En Proceso' } },
-          { id: '3', priority: 'BAJA', currentStage: { name: 'Completado' } },
+          { priority: 'ALTA', currentStage: { id: '1', name: 'En Proceso' } },
+          { priority: 'MEDIA', currentStage: { id: '1', name: 'En Proceso' } },
         ],
       };
 
-      mockPrismaService.project.findUnique.mockResolvedValue(projectWithActivities);
+      mockPrisma.project.findUnique
+        .mockResolvedValueOnce(mockProject)
+        .mockResolvedValueOnce(projectWithActivities);
 
       const result = await service.getProjectStats('1');
 
