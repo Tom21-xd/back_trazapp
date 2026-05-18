@@ -1,5 +1,6 @@
 import { Body, Controller, Post, HttpCode, HttpStatus, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto, RefreshTokenDto } from './dto';
 import { Public, CurrentUser } from '../../common/decorators';
@@ -10,6 +11,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('register')
   @ApiOperation({ summary: 'Registrar nuevo usuario' })
   @ApiResponse({ status: 201, description: 'Usuario registrado exitosamente' })
@@ -19,16 +21,19 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Iniciar sesión' })
   @ApiResponse({ status: 200, description: 'Login exitoso' })
   @ApiResponse({ status: 401, description: 'Credenciales inválidas' })
+  @ApiResponse({ status: 429, description: 'Demasiados intentos, espera un momento' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refrescar token de acceso' })
@@ -41,13 +46,10 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Cerrar sesión' })
+  @ApiOperation({ summary: 'Cerrar sesión (revoca todos los refresh tokens)' })
   @ApiResponse({ status: 200, description: 'Sesión cerrada exitosamente' })
-  logout(
-    @CurrentUser('id') userId: string,
-    @Body() dto: RefreshTokenDto,
-  ) {
-    return this.authService.logout(userId, dto.refreshToken);
+  logout(@CurrentUser('id') userId: string) {
+    return this.authService.logout(userId);
   }
 
   @Get('me')

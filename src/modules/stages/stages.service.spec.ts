@@ -16,7 +16,9 @@ describe('StagesService', () => {
       delete: jest.fn(),
       count: jest.fn(),
     },
-    $transaction: jest.fn(),
+    $transaction: jest.fn(
+      (ops: any): any => (Array.isArray(ops) ? Promise.all(ops) : ops),
+    ),
   };
 
   const mockStage = {
@@ -87,10 +89,12 @@ describe('StagesService', () => {
     it('should return all stages ordered by order', async () => {
       const stages = [mockStage, { ...mockStage, id: '2', order: 2 }];
       mockPrismaService.stage.findMany.mockResolvedValue(stages);
+      mockPrismaService.stage.count.mockResolvedValue(2);
 
       const result = await service.findAll();
 
-      expect(result).toEqual(stages);
+      expect(result.data).toEqual(stages);
+      expect(result.meta.total).toBe(2);
       expect(mockPrismaService.stage.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           orderBy: { order: 'asc' },

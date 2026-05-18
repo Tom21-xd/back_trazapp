@@ -5,6 +5,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStageDto, UpdateStageDto } from './dto';
+import {
+  buildPaginated,
+  resolvePagination,
+  type PaginationQuery,
+} from '../../common/pagination';
 
 @Injectable()
 export class StagesService {
@@ -34,18 +39,24 @@ export class StagesService {
     return stage;
   }
 
-  async findAll(includeInactive = false) {
-    return this.prisma.stage.findMany({
-      where: includeInactive ? undefined : { isActive: true },
-      include: {
-        _count: {
-          select: {
-            activitiesCurrent: true,
-          },
-        },
-      },
-      orderBy: { order: 'asc' },
-    });
+  async findAll(includeInactive = false, pagination: PaginationQuery = {}) {
+    const where = includeInactive ? {} : { isActive: true };
+    const include = {
+      _count: { select: { activitiesCurrent: true } },
+    };
+    const resolved = resolvePagination(pagination);
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.stage.findMany({
+        where,
+        include,
+        orderBy: { order: 'asc' },
+        ...(resolved.all
+          ? {}
+          : { skip: resolved.skip, take: resolved.take }),
+      }),
+      this.prisma.stage.count({ where }),
+    ]);
+    return buildPaginated(data, total, resolved);
   }
 
   async findOne(id: string) {

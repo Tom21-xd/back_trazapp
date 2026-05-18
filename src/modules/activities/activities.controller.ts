@@ -52,26 +52,38 @@ export class ActivitiesController {
   @ApiQuery({ name: 'stageId', required: false, description: 'Filtrar por etapa' })
   @ApiQuery({ name: 'assignedUserId', required: false, description: 'Filtrar por usuario asignado' })
   @ApiQuery({ name: 'priority', required: false, description: 'Filtrar por prioridad (ALTA, MEDIA, BAJA)' })
-  @ApiResponse({ status: 200, description: 'Lista de actividades' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de actividades' })
   findAll(
     @Query('projectId') projectId?: string,
     @Query('stageId') stageId?: string,
     @Query('assignedUserId') assignedUserId?: string,
     @Query('priority') priority?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('all') all?: string,
   ) {
-    return this.activitiesService.findAll({
-      projectId,
-      stageId,
-      assignedUserId,
-      priority,
-    });
+    return this.activitiesService.findAll(
+      { projectId, stageId, assignedUserId, priority },
+      { page, limit, all },
+    );
   }
 
   @Get('my-activities')
-  @ApiOperation({ summary: 'Obtener mis actividades asignadas' })
-  @ApiResponse({ status: 200, description: 'Lista de actividades asignadas al usuario' })
-  getMyActivities(@CurrentUser('id') userId: string) {
-    return this.activitiesService.getMyActivities(userId);
+  @ApiOperation({ summary: 'Obtener mis actividades asignadas (paginado)' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de actividades asignadas' })
+  getMyActivities(
+    @CurrentUser('id') userId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('all') all?: string,
+  ) {
+    return this.activitiesService.getMyActivities(userId, { page, limit, all });
   }
 
   @Get(':id')

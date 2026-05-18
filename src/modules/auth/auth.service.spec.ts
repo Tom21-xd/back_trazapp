@@ -17,6 +17,7 @@ describe('AuthService', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
+      deleteMany: jest.fn(),
     },
   };
 
@@ -128,14 +129,14 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
-    it('should revoke refresh token', async () => {
-      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+    it('should revoke all active refresh tokens of the user', async () => {
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 2 });
 
-      const result = await service.logout('user1', 'token');
+      const result = await service.logout('user1');
 
       expect(result).toEqual({ message: 'Logout exitoso' });
       expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
-        where: { userId: 'user1', token: 'token', revokedAt: null },
+        where: { userId: 'user1', revokedAt: null },
         data: { revokedAt: expect.any(Date) },
       });
     });

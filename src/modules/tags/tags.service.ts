@@ -5,6 +5,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTagDto, UpdateTagDto } from './dto';
+import {
+  buildPaginated,
+  resolvePagination,
+  type PaginationQuery,
+} from '../../common/pagination';
 
 @Injectable()
 export class TagsService {
@@ -34,18 +39,22 @@ export class TagsService {
     return tag;
   }
 
-  async findAll() {
-    return this.prisma.tag.findMany({
-      include: {
-        _count: {
-          select: {
-            projects: true,
-            activities: true,
-          },
-        },
-      },
-      orderBy: { name: 'asc' },
-    });
+  async findAll(pagination: PaginationQuery = {}) {
+    const include = {
+      _count: { select: { projects: true, activities: true } },
+    };
+    const resolved = resolvePagination(pagination);
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.tag.findMany({
+        include,
+        orderBy: { name: 'asc' },
+        ...(resolved.all
+          ? {}
+          : { skip: resolved.skip, take: resolved.take }),
+      }),
+      this.prisma.tag.count(),
+    ]);
+    return buildPaginated(data, total, resolved);
   }
 
   async findOne(id: string) {

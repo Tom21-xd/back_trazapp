@@ -14,8 +14,12 @@ describe('ProjectsService', () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
     projectTag: { deleteMany: jest.fn() },
+    $transaction: jest.fn((ops: unknown) =>
+      Array.isArray(ops) ? Promise.all(ops) : ops,
+    ),
   };
 
   const mockProject = {
@@ -74,22 +78,26 @@ describe('ProjectsService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all projects', async () => {
+    it('should return paginated projects', async () => {
       mockPrisma.project.findMany.mockResolvedValue([mockProject]);
+      mockPrisma.project.count.mockResolvedValue(1);
 
       const result = await service.findAll();
 
-      expect(Array.isArray(result)).toBe(true);
+      expect(Array.isArray(result.data)).toBe(true);
+      expect(result.data).toEqual([mockProject]);
+      expect(result.meta.total).toBe(1);
       expect(mockPrisma.project.findMany).toHaveBeenCalled();
     });
 
     it('should include inactive when requested', async () => {
       mockPrisma.project.findMany.mockResolvedValue([mockProject]);
+      mockPrisma.project.count.mockResolvedValue(1);
 
       await service.findAll(true);
 
       expect(mockPrisma.project.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: undefined }),
+        expect.objectContaining({ where: {} }),
       );
     });
   });

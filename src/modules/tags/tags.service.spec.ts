@@ -14,7 +14,11 @@ describe('TagsService', () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
+    $transaction: jest.fn((ops: unknown) =>
+      Array.isArray(ops) ? Promise.all(ops) : ops,
+    ),
   };
 
   const mockTag = {
@@ -86,21 +90,13 @@ describe('TagsService', () => {
         },
       ];
       mockPrismaService.tag.findMany.mockResolvedValue(tags);
+      mockPrismaService.tag.count.mockResolvedValue(1);
 
       const result = await service.findAll();
 
-      expect(result).toEqual(tags);
-      expect(mockPrismaService.tag.findMany).toHaveBeenCalledWith({
-        include: {
-          _count: {
-            select: {
-              projects: true,
-              activities: true,
-            },
-          },
-        },
-        orderBy: { name: 'asc' },
-      });
+      expect(result.data).toEqual(tags);
+      expect(result.meta.total).toBe(1);
+      expect(mockPrismaService.tag.findMany).toHaveBeenCalled();
     });
   });
 

@@ -37,37 +37,65 @@ export class StageChangesController {
   @ApiResponse({ status: 400, description: 'La actividad ya está en la etapa solicitada' })
   createRequest(
     @Body() dto: CreateStageChangeRequestDto,
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; role: Role },
   ) {
-    return this.stageChangesService.createRequest(dto, userId);
+    return this.stageChangesService.createRequest(dto, user);
   }
 
   @Get()
   @ApiOperation({ summary: 'Obtener todas las solicitudes de cambio' })
   @ApiQuery({ name: 'activityId', required: false, description: 'Filtrar por actividad' })
   @ApiQuery({ name: 'status', required: false, enum: StageChangeStatus, description: 'Filtrar por estado' })
-  @ApiResponse({ status: 200, description: 'Lista de solicitudes' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de solicitudes' })
   findAll(
     @Query('activityId') activityId?: string,
     @Query('status') status?: StageChangeStatus,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('all') all?: string,
   ) {
-    return this.stageChangesService.findAll({ activityId, status });
+    return this.stageChangesService.findAll(
+      { activityId, status },
+      { page, limit, all },
+    );
   }
 
   @Get('pending')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Obtener solicitudes pendientes' })
-  @ApiResponse({ status: 200, description: 'Lista de solicitudes pendientes' })
+  @ApiOperation({ summary: 'Obtener solicitudes pendientes (paginado)' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de solicitudes pendientes' })
   @ApiResponse({ status: 403, description: 'No autorizado' })
-  getPending() {
-    return this.stageChangesService.getPendingRequests();
+  getPending(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('all') all?: string,
+  ) {
+    return this.stageChangesService.getPendingRequests({ page, limit, all });
   }
 
   @Get('my-requests')
-  @ApiOperation({ summary: 'Obtener mis solicitudes' })
-  @ApiResponse({ status: 200, description: 'Lista de solicitudes del usuario' })
-  getMyRequests(@CurrentUser('id') userId: string) {
-    return this.stageChangesService.getMyRequests(userId);
+  @ApiOperation({ summary: 'Obtener mis solicitudes (paginado)' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de solicitudes del usuario' })
+  getMyRequests(
+    @CurrentUser('id') userId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('all') all?: string,
+  ) {
+    return this.stageChangesService.getMyRequests(userId, {
+      page,
+      limit,
+      all,
+    });
   }
 
   @Get(':id')
@@ -103,8 +131,8 @@ export class StageChangesController {
   addComment(
     @Param('id') requestId: string,
     @Body() dto: AddCommentDto,
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; role: Role },
   ) {
-    return this.stageChangesService.addComment(requestId, dto, userId);
+    return this.stageChangesService.addComment(requestId, dto, user);
   }
 }

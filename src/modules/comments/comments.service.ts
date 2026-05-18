@@ -6,10 +6,20 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCommentDto, UpdateCommentDto } from './dto';
 import { Role } from '@prisma/client';
+import { FILE_PUBLIC_SELECT } from '../../common/prisma/file-select';
+import {
+  buildPaginated,
+  resolvePagination,
+  type PaginationQuery,
+} from '../../common/pagination';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CommentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async create(dto: CreateCommentDto, userId: string) {
     // Verificar que la actividad existe
@@ -37,30 +47,45 @@ export class CommentsService {
             role: true,
           },
         },
-        files: true,
+        files: FILE_PUBLIC_SELECT,
       },
     });
+
+    await this.notifications.newComment(
+      dto.activityId,
+      activity.title,
+      userId,
+    );
 
     return comment;
   }
 
-  async findByActivity(activityId: string) {
-    return this.prisma.comment.findMany({
-      where: { activityId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatar: true,
-            role: true,
-          },
+  async findByActivity(activityId: string, pagination: PaginationQuery = {}) {
+    const include = {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatar: true,
+          role: true,
         },
-        files: true,
       },
-      orderBy: { createdAt: 'desc' },
-    });
+      files: FILE_PUBLIC_SELECT,
+    };
+    const resolved = resolvePagination(pagination);
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.comment.findMany({
+        where: { activityId },
+        include,
+        orderBy: { createdAt: 'desc' },
+        ...(resolved.all
+          ? {}
+          : { skip: resolved.skip, take: resolved.take }),
+      }),
+      this.prisma.comment.count({ where: { activityId } }),
+    ]);
+    return buildPaginated(data, total, resolved);
   }
 
   async findOne(id: string) {
@@ -82,7 +107,7 @@ export class CommentsService {
             title: true,
           },
         },
-        files: true,
+        files: FILE_PUBLIC_SELECT,
       },
     });
 
@@ -121,7 +146,7 @@ export class CommentsService {
             role: true,
           },
         },
-        files: true,
+        files: FILE_PUBLIC_SELECT,
       },
     });
 

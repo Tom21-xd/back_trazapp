@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsString,
   MinLength,
+  MaxLength,
   IsOptional,
   IsEnum,
 } from 'class-validator';
@@ -26,6 +27,7 @@ export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(6)
+  @MaxLength(128)
   password: string;
 
   @ApiProperty({
@@ -34,6 +36,7 @@ export class CreateUserDto {
   })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(120)
   name: string;
 
   @ApiPropertyOptional({
@@ -42,6 +45,7 @@ export class CreateUserDto {
   })
   @IsString()
   @IsOptional()
+  @MaxLength(30)
   phone?: string;
 
   @ApiPropertyOptional({
@@ -50,6 +54,7 @@ export class CreateUserDto {
   })
   @IsString()
   @IsOptional()
+  @MaxLength(500)
   avatar?: string;
 
   @ApiPropertyOptional({

@@ -14,7 +14,11 @@ describe('UsersService', () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
+    $transaction: jest.fn((ops: unknown) =>
+      Array.isArray(ops) ? Promise.all(ops) : ops,
+    ),
   };
 
   const mockUser = {
@@ -47,12 +51,15 @@ describe('UsersService', () => {
   });
 
   describe('findAll', () => {
-    it('should return array of users', async () => {
+    it('should return paginated users', async () => {
       mockPrisma.user.findMany.mockResolvedValue([mockUser]);
+      mockPrisma.user.count.mockResolvedValue(1);
 
       const result = await service.findAll();
 
-      expect(Array.isArray(result)).toBe(true);
+      expect(Array.isArray(result.data)).toBe(true);
+      expect(result.data).toEqual([mockUser]);
+      expect(result.meta.total).toBe(1);
       expect(mockPrisma.user.findMany).toHaveBeenCalled();
     });
   });

@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { TagsService } from './tags.service';
 import { CreateTagDto, UpdateTagDto } from './dto';
@@ -38,10 +40,17 @@ export class TagsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Obtener todas las etiquetas' })
-  @ApiResponse({ status: 200, description: 'Lista de etiquetas con conteo de uso' })
-  findAll() {
-    return this.tagsService.findAll();
+  @ApiOperation({ summary: 'Obtener todas las etiquetas (paginado)' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de etiquetas' })
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('all') all?: string,
+  ) {
+    return this.tagsService.findAll({ page, limit, all });
   }
 
   @Get(':id')

@@ -6,6 +6,7 @@ import {
   IsDateString,
   IsUUID,
   IsArray,
+  MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProjectStatus } from '@prisma/client';
@@ -17,6 +18,7 @@ export class CreateProjectDto {
   })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(150)
   name: string;
 
   @ApiPropertyOptional({
@@ -25,6 +27,7 @@ export class CreateProjectDto {
   })
   @IsString()
   @IsOptional()
+  @MaxLength(2000)
   description?: string;
 
   @ApiPropertyOptional({

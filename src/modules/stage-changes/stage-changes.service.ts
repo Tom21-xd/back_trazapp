@@ -11,12 +11,44 @@ import {
   AddCommentDto,
 } from './dto';
 import { Role, StageChangeStatus } from '@prisma/client';
+import { FILE_PUBLIC_SELECT } from '../../common/prisma/file-select';
+import {
+  buildPaginated,
+  resolvePagination,
+  type PaginationQuery,
+} from '../../common/pagination';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class StageChangesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
-  async createRequest(dto: CreateStageChangeRequestDto, userId: string) {
+  /** ADMIN siempre; un empleado solo si está asignado a la actividad. */
+  private async assertAssignedOrAdmin(
+    activityId: string,
+    user: { id: string; role: Role },
+  ) {
+    if (user.role === Role.ADMIN) return;
+
+    const assignment = await this.prisma.activityAssignment.findFirst({
+      where: { activityId, userId: user.id },
+      select: { id: true },
+    });
+
+    if (!assignment) {
+      throw new ForbiddenException(
+        'Solo puedes gestionar solicitudes de actividades asignadas a ti',
+      );
+    }
+  }
+
+  async createRequest(
+    dto: CreateStageChangeRequestDto,
+    user: { id: string; role: Role },
+  ) {
     // Verificar que la actividad existe
     const activity = await this.prisma.activity.findUnique({
       where: { id: dto.activityId },
@@ -28,6 +60,9 @@ export class StageChangesService {
     if (!activity) {
       throw new NotFoundException('Actividad no encontrada');
     }
+
+    // Regla de asignación: el empleado debe estar asignado a la actividad
+    await this.assertAssignedOrAdmin(dto.activityId, user);
 
     // Verificar que la etapa destino existe
     const toStage = await this.prisma.stage.findUnique({
@@ -51,25 +86,46 @@ export class StageChangesService {
         activity: { connect: { id: dto.activityId } },
         fromStage: { connect: { id: activity.currentStageId } },
         toStage: { connect: { id: dto.toStageId } },
-        requestedBy: { connect: { id: userId } },
+        requestedBy: { connect: { id: user.id } },
       },
       include: this.getIncludeOptions(),
     });
 
+    const requester = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { name: true },
+    });
+    await this.notifications.stageChangeRequested(
+      dto.activityId,
+      activity.title,
+      requester?.name ?? 'Un empleado',
+    );
+
     return request;
   }
 
-  async findAll(filters?: { activityId?: string; status?: StageChangeStatus }) {
+  async findAll(
+    filters?: { activityId?: string; status?: StageChangeStatus },
+    pagination: PaginationQuery = {},
+  ) {
     const where: any = {};
 
     if (filters?.activityId) where.activityId = filters.activityId;
     if (filters?.status) where.status = filters.status;
 
-    return this.prisma.stageChangeRequest.findMany({
-      where,
-      include: this.getIncludeOptions(),
-      orderBy: { createdAt: 'desc' },
-    });
+    const resolved = resolvePagination(pagination);
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.stageChangeRequest.findMany({
+        where,
+        include: this.getIncludeOptions(),
+        orderBy: { createdAt: 'desc' },
+        ...(resolved.all
+          ? {}
+          : { skip: resolved.skip, take: resolved.take }),
+      }),
+      this.prisma.stageChangeRequest.count({ where }),
+    ]);
+    return buildPaginated(data, total, resolved);
   }
 
   async findOne(id: string) {
@@ -88,7 +144,7 @@ export class StageChangesService {
                 role: true,
               },
             },
-            files: true,
+            files: FILE_PUBLIC_SELECT,
           },
           orderBy: { createdAt: 'asc' },
         },
@@ -156,20 +212,33 @@ export class StageChangesService {
       include: this.getIncludeOptions(),
     });
 
+    await this.notifications.stageChangeReviewed(
+      request.requestedById,
+      request.activityId,
+      request.activity?.title ?? 'la actividad',
+      dto.status === StageChangeStatus.APROBADO,
+      dto.reviewComment,
+    );
+
     return updated;
   }
 
   async addComment(
     requestId: string,
     dto: AddCommentDto,
-    userId: string,
+    user: { id: string; role: Role },
   ) {
-    await this.findOne(requestId);
+    const request = await this.findOne(requestId);
+
+    // Puede comentar: admin, quien hizo la solicitud, o un asignado a la actividad
+    if (user.role !== Role.ADMIN && request.requestedById !== user.id) {
+      await this.assertAssignedOrAdmin(request.activityId, user);
+    }
 
     const comment = await this.prisma.stageChangeComment.create({
       data: {
         content: dto.content,
-        user: { connect: { id: userId } },
+        user: { connect: { id: user.id } },
         stageChangeRequest: { connect: { id: requestId } },
       },
       include: {
@@ -182,22 +251,32 @@ export class StageChangesService {
             role: true,
           },
         },
+        files: FILE_PUBLIC_SELECT,
       },
     });
 
     return comment;
   }
 
-  async getPendingRequests() {
-    return this.findAll({ status: StageChangeStatus.PENDIENTE });
+  async getPendingRequests(pagination: PaginationQuery = {}) {
+    return this.findAll({ status: StageChangeStatus.PENDIENTE }, pagination);
   }
 
-  async getMyRequests(userId: string) {
-    return this.prisma.stageChangeRequest.findMany({
-      where: { requestedById: userId },
-      include: this.getIncludeOptions(),
-      orderBy: { createdAt: 'desc' },
-    });
+  async getMyRequests(userId: string, pagination: PaginationQuery = {}) {
+    const where = { requestedById: userId };
+    const resolved = resolvePagination(pagination);
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.stageChangeRequest.findMany({
+        where,
+        include: this.getIncludeOptions(),
+        orderBy: { createdAt: 'desc' },
+        ...(resolved.all
+          ? {}
+          : { skip: resolved.skip, take: resolved.take }),
+      }),
+      this.prisma.stageChangeRequest.count({ where }),
+    ]);
+    return buildPaginated(data, total, resolved);
   }
 
   private getIncludeOptions() {
@@ -231,7 +310,7 @@ export class StageChangesService {
           email: true,
         },
       },
-      files: true,
+      files: FILE_PUBLIC_SELECT,
       _count: {
         select: {
           comments: true,

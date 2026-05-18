@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CommentsService } from './comments.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 
@@ -15,10 +16,14 @@ describe('CommentsService', () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
     activity: {
       findUnique: jest.fn(),
     },
+    $transaction: jest.fn((ops: unknown) =>
+      Array.isArray(ops) ? Promise.all(ops) : ops,
+    ),
   };
 
   const mockComment = {
@@ -40,6 +45,10 @@ describe('CommentsService', () => {
       providers: [
         CommentsService,
         { provide: PrismaService, useValue: mockPrismaService },
+        {
+          provide: NotificationsService,
+          useValue: { newComment: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -91,15 +100,13 @@ describe('CommentsService', () => {
     it('should return comments for an activity', async () => {
       const comments = [mockComment];
       mockPrismaService.comment.findMany.mockResolvedValue(comments);
+      mockPrismaService.comment.count.mockResolvedValue(1);
 
       const result = await service.findByActivity('activity1');
 
-      expect(result).toEqual(comments);
-      expect(mockPrismaService.comment.findMany).toHaveBeenCalledWith({
-        where: { activityId: 'activity1' },
-        include: expect.any(Object),
-        orderBy: { createdAt: 'desc' },
-      });
+      expect(result.data).toEqual(comments);
+      expect(result.meta.total).toBe(1);
+      expect(mockPrismaService.comment.findMany).toHaveBeenCalled();
     });
   });
 

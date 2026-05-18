@@ -3,6 +3,7 @@ import {
   IsString,
   IsNumber,
   IsEnum,
+  IsOptional,
   validateSync,
   MinLength,
 } from 'class-validator';
@@ -35,6 +36,26 @@ class EnvironmentVariables {
 
   @IsString()
   JWT_REFRESH_EXPIRATION: string = '7d';
+
+  @IsOptional()
+  @IsString()
+  FRONTEND_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  UPLOAD_DIR?: string;
+
+  @IsOptional()
+  @IsNumber()
+  MAX_FILE_SIZE_MB?: number;
+
+  @IsOptional()
+  @IsNumber()
+  THROTTLE_TTL?: number;
+
+  @IsOptional()
+  @IsNumber()
+  THROTTLE_LIMIT?: number;
 }
 
 export function validate(config: Record<string, unknown>) {

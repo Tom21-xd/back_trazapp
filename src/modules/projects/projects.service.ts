@@ -1,6 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProjectDto, UpdateProjectDto } from './dto';
+import {
+  buildPaginated,
+  resolvePagination,
+  type PaginationQuery,
+} from '../../common/pagination';
 
 @Injectable()
 export class ProjectsService {
@@ -38,24 +43,27 @@ export class ProjectsService {
     return project;
   }
 
-  async findAll(includeInactive = false) {
-    return this.prisma.project.findMany({
-      where: includeInactive ? undefined : { isActive: true },
-      include: {
-        projectType: true,
-        tags: {
-          include: {
-            tag: true,
-          },
-        },
-        _count: {
-          select: {
-            activities: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(includeInactive = false, pagination: PaginationQuery = {}) {
+    const resolved = resolvePagination(pagination);
+    const where = includeInactive ? {} : { isActive: true };
+    const include = {
+      projectType: true,
+      tags: { include: { tag: true } },
+      _count: { select: { activities: true } },
+    };
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.project.findMany({
+        where,
+        include,
+        orderBy: { createdAt: 'desc' },
+        ...(resolved.all
+          ? {}
+          : { skip: resolved.skip, take: resolved.take }),
+      }),
+      this.prisma.project.count({ where }),
+    ]);
+    return buildPaginated(data, total, resolved);
   }
 
   async findOne(id: string) {

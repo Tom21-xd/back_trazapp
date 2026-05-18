@@ -6,6 +6,24 @@ import {
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
+import {
+  buildPaginated,
+  resolvePagination,
+  type PaginationQuery,
+} from '../../common/pagination';
+
+const USER_PUBLIC_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  phone: true,
+  avatar: true,
+  role: true,
+  isActive: true,
+  lastLoginAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 @Injectable()
 export class UsersService {
@@ -46,22 +64,19 @@ export class UsersService {
     return user;
   }
 
-  async findAll() {
-    return this.prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        avatar: true,
-        role: true,
-        isActive: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(pagination: PaginationQuery = {}) {
+    const resolved = resolvePagination(pagination);
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        select: USER_PUBLIC_SELECT,
+        orderBy: { createdAt: 'desc' },
+        ...(resolved.all
+          ? {}
+          : { skip: resolved.skip, take: resolved.take }),
+      }),
+      this.prisma.user.count(),
+    ]);
+    return buildPaginated(data, total, resolved);
   }
 
   async findOne(id: string) {

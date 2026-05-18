@@ -41,11 +41,23 @@ export class StagesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Obtener todas las etapas' })
+  @ApiOperation({ summary: 'Obtener todas las etapas (paginado)' })
   @ApiQuery({ name: 'includeInactive', required: false, description: 'Incluir etapas inactivas' })
-  @ApiResponse({ status: 200, description: 'Lista de etapas ordenadas' })
-  findAll(@Query('includeInactive') includeInactive?: string) {
-    return this.stagesService.findAll(includeInactive === 'true');
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de etapas ordenadas' })
+  findAll(
+    @Query('includeInactive') includeInactive?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('all') all?: string,
+  ) {
+    return this.stagesService.findAll(includeInactive === 'true', {
+      page,
+      limit,
+      all,
+    });
   }
 
   @Get(':id')

@@ -6,6 +6,7 @@ import {
   IsDateString,
   IsUUID,
   IsArray,
+  MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Priority } from '@prisma/client';
@@ -17,6 +18,7 @@ export class CreateActivityDto {
   })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(200)
   title: string;
 
   @ApiPropertyOptional({
@@ -25,6 +27,7 @@ export class CreateActivityDto {
   })
   @IsString()
   @IsOptional()
+  @MaxLength(5000)
   description?: string;
 
   @ApiPropertyOptional({

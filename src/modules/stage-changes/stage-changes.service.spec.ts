@@ -1,8 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { StageChangesService } from './stage-changes.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { StageChangeStatus } from '@prisma/client';
+import { StageChangeStatus, Role } from '@prisma/client';
+
+const adminUser = { id: 'user1', role: Role.ADMIN };
 
 describe('StageChangesService', () => {
   let service: StageChangesService;
@@ -14,6 +17,7 @@ describe('StageChangesService', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
     activity: {
       findUnique: jest.fn(),
@@ -31,7 +35,12 @@ describe('StageChangesService', () => {
     stageChangeComment: {
       create: jest.fn(),
     },
-    $transaction: jest.fn(),
+    user: {
+      findUnique: jest.fn(),
+    },
+    $transaction: jest.fn((ops: unknown) =>
+      Array.isArray(ops) ? Promise.all(ops) : ops,
+    ),
   };
 
   const mockStageChangeRequest = {
@@ -54,6 +63,13 @@ describe('StageChangesService', () => {
       providers: [
         StageChangesService,
         { provide: PrismaService, useValue: mockPrismaService },
+        {
+          provide: NotificationsService,
+          useValue: {
+            stageChangeRequested: jest.fn(),
+            stageChangeReviewed: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -86,7 +102,7 @@ describe('StageChangesService', () => {
         mockStageChangeRequest,
       );
 
-      const result = await service.createRequest(createDto, 'user1');
+      const result = await service.createRequest(createDto, adminUser);
 
       expect(result).toBeDefined();
       expect(mockPrismaService.stageChangeRequest.create).toHaveBeenCalled();
@@ -101,7 +117,7 @@ describe('StageChangesService', () => {
 
       mockPrismaService.activity.findUnique.mockResolvedValue(null);
 
-      await expect(service.createRequest(createDto, 'user1')).rejects.toThrow(
+      await expect(service.createRequest(createDto, adminUser)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -121,7 +137,7 @@ describe('StageChangesService', () => {
       mockPrismaService.activity.findUnique.mockResolvedValue(mockActivity);
       mockPrismaService.stage.findUnique.mockResolvedValue({ id: 'stage1' });
 
-      await expect(service.createRequest(createDto, 'user1')).rejects.toThrow(
+      await expect(service.createRequest(createDto, adminUser)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -131,16 +147,19 @@ describe('StageChangesService', () => {
     it('should return all stage change requests', async () => {
       const requests = [mockStageChangeRequest];
       mockPrismaService.stageChangeRequest.findMany.mockResolvedValue(requests);
+      mockPrismaService.stageChangeRequest.count.mockResolvedValue(1);
 
       const result = await service.findAll();
 
-      expect(result).toEqual(requests);
+      expect(result.data).toEqual(requests);
+      expect(result.meta.total).toBe(1);
     });
 
     it('should filter by status', async () => {
       mockPrismaService.stageChangeRequest.findMany.mockResolvedValue([
         mockStageChangeRequest,
       ]);
+      mockPrismaService.stageChangeRequest.count.mockResolvedValue(1);
 
       await service.findAll({ status: StageChangeStatus.PENDIENTE });
 
@@ -240,7 +259,7 @@ describe('StageChangesService', () => {
         updatedAt: new Date(),
       });
 
-      const result = await service.addComment('1', commentDto, 'user1');
+      const result = await service.addComment('1', commentDto, adminUser);
 
       expect(result).toBeDefined();
       expect(result.content).toBe(commentDto.content);
@@ -253,9 +272,9 @@ describe('StageChangesService', () => {
 
       mockPrismaService.stageChangeRequest.findUnique.mockResolvedValue(null);
 
-      await expect(service.addComment('999', commentDto, 'user1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.addComment('999', commentDto, adminUser),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -265,15 +284,18 @@ describe('StageChangesService', () => {
       mockPrismaService.stageChangeRequest.findMany.mockResolvedValue([
         mockStageChangeRequest,
       ]);
+      mockPrismaService.stageChangeRequest.count.mockResolvedValue(1);
 
       const result = await service.getMyRequests(userId);
 
-      expect(result).toBeDefined();
-      expect(mockPrismaService.stageChangeRequest.findMany).toHaveBeenCalledWith({
-        where: { requestedById: userId },
-        include: expect.any(Object),
-        orderBy: { createdAt: 'desc' },
-      });
+      expect(result.data).toBeDefined();
+      expect(result.meta.total).toBe(1);
+      expect(mockPrismaService.stageChangeRequest.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { requestedById: userId },
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
     });
   });
 });

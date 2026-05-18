@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsInt,
+  Min,
+  MaxLength,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateStageDto {
@@ -8,6 +15,7 @@ export class CreateStageDto {
   })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(80)
   name: string;
 
   @ApiPropertyOptional({
@@ -16,6 +24,7 @@ export class CreateStageDto {
   })
   @IsString()
   @IsOptional()
+  @MaxLength(500)
   description?: string;
 
   @ApiProperty({
@@ -33,5 +42,6 @@ export class CreateStageDto {
   })
   @IsString()
   @IsOptional()
+  @MaxLength(20)
   color?: string;
 }

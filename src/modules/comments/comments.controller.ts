@@ -40,11 +40,23 @@ export class CommentsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Obtener comentarios de una actividad' })
+  @ApiOperation({ summary: 'Obtener comentarios de una actividad (paginado)' })
   @ApiQuery({ name: 'activityId', required: true, description: 'ID de la actividad' })
-  @ApiResponse({ status: 200, description: 'Lista de comentarios' })
-  findByActivity(@Query('activityId') activityId: string) {
-    return this.commentsService.findByActivity(activityId);
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de comentarios' })
+  findByActivity(
+    @Query('activityId') activityId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('all') all?: string,
+  ) {
+    return this.commentsService.findByActivity(activityId, {
+      page,
+      limit,
+      all,
+    });
   }
 
   @Get(':id')

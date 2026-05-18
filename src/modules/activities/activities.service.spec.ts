@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ActivitiesService } from './activities.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { NotFoundException } from '@nestjs/common';
 import { Priority } from '@prisma/client';
 
@@ -14,13 +15,28 @@ describe('ActivitiesService', () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
     project: { findUnique: jest.fn() },
     stage: { findUnique: jest.fn() },
     activityAssignment: { deleteMany: jest.fn(), createMany: jest.fn(), delete: jest.fn() },
-    activityTag: { deleteMany: jest.fn() },
-    activityDependency: { deleteMany: jest.fn(), count: jest.fn() },
-    activityStageHistory: { create: jest.fn(), updateMany: jest.fn() },
+    activityTag: { deleteMany: jest.fn(), createMany: jest.fn() },
+    activityDependency: {
+      deleteMany: jest.fn(),
+      createMany: jest.fn(),
+      count: jest.fn(),
+    },
+    activityStageHistory: {
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      findFirst: jest.fn(),
+    },
+    user: { count: jest.fn() },
+    tag: { count: jest.fn() },
+    $transaction: jest.fn(async (arg: any) =>
+      typeof arg === 'function' ? arg(mockPrisma) : Promise.all(arg),
+    ),
   };
 
   const mockActivity = {
@@ -41,6 +57,15 @@ describe('ActivitiesService', () => {
       providers: [
         ActivitiesService,
         { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: NotificationsService,
+          useValue: {
+            activityAssigned: jest.fn(),
+            stageChangeRequested: jest.fn(),
+            stageChangeReviewed: jest.fn(),
+            newComment: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -80,17 +105,21 @@ describe('ActivitiesService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all activities', async () => {
+    it('should return paginated activities', async () => {
       mockPrisma.activity.findMany.mockResolvedValue([mockActivity]);
+      mockPrisma.activity.count.mockResolvedValue(1);
 
       const result = await service.findAll();
 
-      expect(Array.isArray(result)).toBe(true);
+      expect(Array.isArray(result.data)).toBe(true);
+      expect(result.data).toEqual([mockActivity]);
+      expect(result.meta.total).toBe(1);
       expect(mockPrisma.activity.findMany).toHaveBeenCalled();
     });
 
     it('should filter by projectId', async () => {
       mockPrisma.activity.findMany.mockResolvedValue([mockActivity]);
+      mockPrisma.activity.count.mockResolvedValue(1);
 
       await service.findAll({ projectId: 'project1' });
 
@@ -116,12 +145,48 @@ describe('ActivitiesService', () => {
 
   describe('update', () => {
     it('should update activity data', async () => {
-      mockPrisma.activity.findUnique.mockResolvedValue(mockActivity);
-      mockPrisma.activity.update.mockResolvedValue({ ...mockActivity, title: 'Updated' });
+      // update() ahora reconsulta con findOne() al final (devuelve historial completo)
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        title: 'Updated',
+      });
+      mockPrisma.activity.update.mockResolvedValue({
+        ...mockActivity,
+        title: 'Updated',
+      });
 
       const result = await service.update('1', { title: 'Updated' });
 
       expect(result.title).toBe('Updated');
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      expect(mockPrisma.activity.update).toHaveBeenCalled();
+    });
+
+    it('should change stage and record history atomically', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        currentStageId: 'stage1',
+      });
+      mockPrisma.stage.findUnique.mockResolvedValue({ id: 'stage2' });
+      mockPrisma.activityStageHistory.findFirst.mockResolvedValue({
+        id: 'h1',
+        activityId: '1',
+        exitedAt: null,
+      });
+      mockPrisma.activityStageHistory.update.mockResolvedValue({});
+      mockPrisma.activityStageHistory.create.mockResolvedValue({});
+      mockPrisma.activity.update.mockResolvedValue({
+        ...mockActivity,
+        currentStageId: 'stage2',
+      });
+
+      await service.update('1', { currentStageId: 'stage2' });
+
+      expect(mockPrisma.activityStageHistory.update).toHaveBeenCalledWith({
+        where: { id: 'h1' },
+        data: { exitedAt: expect.any(Date) },
+      });
+      expect(mockPrisma.activityStageHistory.create).toHaveBeenCalled();
     });
   });
 
@@ -141,12 +206,14 @@ describe('ActivitiesService', () => {
   });
 
   describe('getMyActivities', () => {
-    it('should return activities assigned to user', async () => {
+    it('should return paginated activities assigned to user', async () => {
       mockPrisma.activity.findMany.mockResolvedValue([mockActivity]);
+      mockPrisma.activity.count.mockResolvedValue(1);
 
       const result = await service.getMyActivities('user1');
 
-      expect(Array.isArray(result)).toBe(true);
+      expect(Array.isArray(result.data)).toBe(true);
+      expect(result.meta.total).toBe(1);
       expect(mockPrisma.activity.findMany).toHaveBeenCalled();
     });
   });

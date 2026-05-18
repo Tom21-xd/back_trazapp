@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsUUID, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateStageChangeRequestDto {
@@ -24,5 +24,6 @@ export class CreateStageChangeRequestDto {
   })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(2000)
   description: string;
 }

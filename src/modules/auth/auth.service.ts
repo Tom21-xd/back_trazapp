@@ -2,7 +2,6 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
-  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -140,16 +139,20 @@ export class AuthService {
 
       return tokens;
     } catch (error) {
+      // Conservamos los mensajes específicos que ya lanzamos arriba
+      // (expirado / usuario inactivo) y solo genéricos el resto.
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Refresh token inválido');
     }
   }
 
-  async logout(userId: string, refreshToken: string) {
-    // Revocar todos los refresh tokens del usuario
+  async logout(userId: string) {
+    // Revoca TODAS las sesiones activas del usuario (no requiere enviar el token)
     await this.prisma.refreshToken.updateMany({
       where: {
         userId,
-        token: refreshToken,
         revokedAt: null,
       },
       data: { revokedAt: new Date() },
@@ -186,6 +189,15 @@ export class AuthService {
         token: refreshToken,
         userId,
         expiresAt,
+      },
+    });
+
+    // Housekeeping: elimina tokens caducados o revocados del usuario para
+    // que la tabla no crezca de forma indefinida.
+    await this.prisma.refreshToken.deleteMany({
+      where: {
+        userId,
+        OR: [{ expiresAt: { lt: new Date() } }, { revokedAt: { not: null } }],
       },
     });
 
