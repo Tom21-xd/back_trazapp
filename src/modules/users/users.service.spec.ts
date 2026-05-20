@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotFoundException, ConflictException } from '@nestjs/common';
-import { Role } from '@prisma/client';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -27,7 +26,6 @@ describe('UsersService', () => {
     name: 'Test User',
     phone: null,
     avatar: null,
-    role: Role.EMPLEADO,
     isActive: true,
     lastLoginAt: null,
     createdAt: new Date(),

@@ -2,10 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { StageChangesService } from './stage-changes.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ActivityEventsService } from '../activity-events/activity-events.service';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { StageChangeStatus, Role } from '@prisma/client';
+import { StageChangeStatus } from '@prisma/client';
 
-const adminUser = { id: 'user1', role: Role.ADMIN };
+// Usuario que puede gestionar solicitudes de cualquier actividad
+const adminUser = { id: 'user1', permissions: ['stagechange:manage:any'] };
 
 describe('StageChangesService', () => {
   let service: StageChangesService;
@@ -69,6 +71,10 @@ describe('StageChangesService', () => {
             stageChangeRequested: jest.fn(),
             stageChangeReviewed: jest.fn(),
           },
+        },
+        {
+          provide: ActivityEventsService,
+          useValue: { record: jest.fn(), list: jest.fn() },
         },
       ],
     }).compile();

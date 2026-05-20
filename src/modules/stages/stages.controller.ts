@@ -21,8 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { StagesService } from './stages.service';
 import { CreateStageDto, UpdateStageDto } from './dto';
-import { Roles } from '../../common/decorators';
-import { Role } from '@prisma/client';
+import { RequirePermissions } from '../../common/decorators';
 
 @ApiTags('stages')
 @ApiBearerAuth('JWT-auth')
@@ -31,7 +30,7 @@ export class StagesController {
   constructor(private readonly stagesService: StagesService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
+  @RequirePermissions('stage:create')
   @ApiOperation({ summary: 'Crear nueva etapa' })
   @ApiResponse({ status: 201, description: 'Etapa creada exitosamente' })
   @ApiResponse({ status: 409, description: 'Ya existe una etapa con ese nombre' })
@@ -70,7 +69,7 @@ export class StagesController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('stage:update')
   @ApiOperation({ summary: 'Actualizar etapa' })
   @ApiParam({ name: 'id', description: 'ID de la etapa' })
   @ApiResponse({ status: 200, description: 'Etapa actualizada' })
@@ -82,7 +81,7 @@ export class StagesController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('stage:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar etapa' })
   @ApiParam({ name: 'id', description: 'ID de la etapa' })
@@ -95,7 +94,7 @@ export class StagesController {
   }
 
   @Post('reorder')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('stage:reorder')
   @ApiOperation({ summary: 'Reordenar etapas' })
   @ApiBody({
     description: 'Array de etapas con nuevo orden',

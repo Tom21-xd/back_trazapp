@@ -13,12 +13,20 @@ import {
   type PaginationQuery,
 } from '../../common/pagination';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ActivityEventsService } from '../activity-events/activity-events.service';
+import { hasAnyPermission } from '../../common/permissions';
+
+interface AuthUser {
+  id: string;
+  permissions?: string[];
+}
 
 @Injectable()
 export class ActivitiesService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
+    private events: ActivityEventsService,
   ) {}
 
   async create(dto: CreateActivityDto, createdById: string) {
@@ -88,6 +96,24 @@ export class ActivitiesService {
       );
     }
 
+    await this.events.record({
+      activityId: activity.id,
+      type: 'CREATED',
+      actorId: createdById,
+      toStageId: dto.currentStageId,
+      note: activity.title,
+    });
+    if (assignedUserIds && assignedUserIds.length > 0) {
+      for (const targetUserId of assignedUserIds) {
+        await this.events.record({
+          activityId: activity.id,
+          type: 'ASSIGNED',
+          actorId: createdById,
+          targetUserId,
+        });
+      }
+    }
+
     return activity;
   }
 
@@ -99,6 +125,7 @@ export class ActivitiesService {
       priority?: string;
     },
     pagination: PaginationQuery = {},
+    user?: AuthUser,
   ) {
     const where: any = { isActive: true };
 
@@ -109,6 +136,11 @@ export class ActivitiesService {
       where.assignments = {
         some: { userId: filters.assignedUserId },
       };
+    }
+
+    // Alcance: sin 'activity:read:any' solo ve las actividades asignadas a sí mismo
+    if (user && !hasAnyPermission(user.permissions, ['activity:read:any'])) {
+      where.assignments = { some: { userId: user.id } };
     }
 
     const resolved = resolvePagination(pagination);
@@ -140,7 +172,7 @@ export class ActivitiesService {
         comments: {
           include: {
             user: {
-              select: { id: true, name: true, email: true, avatar: true, role: true },
+              select: { id: true, name: true, email: true, avatar: true },
             },
             files: FILE_PUBLIC_SELECT,
           },
@@ -170,7 +202,28 @@ export class ActivitiesService {
     return activity;
   }
 
-  async update(id: string, dto: UpdateActivityDto) {
+  /** Lectura con alcance: 'activity:read:any' ve cualquiera; si no, debe estar asignado. */
+  async findOneScoped(id: string, user: AuthUser) {
+    const activity = await this.findOne(id);
+    if (hasAnyPermission(user.permissions, ['activity:read:any'])) {
+      return activity;
+    }
+    const assigned = activity.assignments?.some(
+      (a: { userId: string }) => a.userId === user.id,
+    );
+    if (!assigned) {
+      throw new ForbiddenException('No tienes acceso a esta actividad');
+    }
+    return activity;
+  }
+
+  /** Timeline inmutable de eventos de la actividad. */
+  async listEvents(id: string, user: AuthUser, pagination: PaginationQuery = {}) {
+    await this.findOneScoped(id, user);
+    return this.events.list(id, pagination);
+  }
+
+  async update(id: string, dto: UpdateActivityDto, actorId: string) {
     const existing = await this.findOne(id);
 
     const {
@@ -184,6 +237,10 @@ export class ActivitiesService {
     const stageChanged =
       currentStageId !== undefined &&
       currentStageId !== existing.currentStageId;
+
+    const previousAssignees = (existing.assignments ?? []).map(
+      (a: { userId: string }) => a.userId,
+    );
 
     // Validaciones previas (fuera de la transacción, fallan rápido con 404/400)
     if (stageChanged) {
@@ -271,6 +328,37 @@ export class ActivitiesService {
       });
     });
 
+    // Trazabilidad (después de commit — best-effort)
+    if (stageChanged) {
+      await this.events.record({
+        activityId: id,
+        type: 'STAGE_CHANGED',
+        actorId,
+        fromStageId: existing.currentStageId,
+        toStageId: currentStageId,
+      });
+    }
+    if (assignedUserIds !== undefined) {
+      const added = assignedUserIds.filter((u) => !previousAssignees.includes(u));
+      const removed = previousAssignees.filter((u) => !assignedUserIds.includes(u));
+      for (const targetUserId of added) {
+        await this.events.record({
+          activityId: id,
+          type: 'ASSIGNED',
+          actorId,
+          targetUserId,
+        });
+      }
+      for (const targetUserId of removed) {
+        await this.events.record({
+          activityId: id,
+          type: 'UNASSIGNED',
+          actorId,
+          targetUserId,
+        });
+      }
+    }
+
     return this.findOne(id);
   }
 
@@ -295,8 +383,11 @@ export class ActivitiesService {
     return { message: 'Actividad eliminada exitosamente' };
   }
 
-  async assignUsers(id: string, dto: AssignUsersDto) {
-    await this.findOne(id);
+  async assignUsers(id: string, dto: AssignUsersDto, actorId: string) {
+    const existing = await this.findOne(id);
+    const previousAssignees = (existing.assignments ?? []).map(
+      (a: { userId: string }) => a.userId,
+    );
 
     if (dto.userIds.length > 0) {
       await this.verifyUsersExist(dto.userIds);
@@ -315,26 +406,55 @@ export class ActivitiesService {
       }),
     ]);
 
+    const added = dto.userIds.filter((u) => !previousAssignees.includes(u));
+    const removed = previousAssignees.filter((u) => !dto.userIds.includes(u));
+    for (const targetUserId of added) {
+      await this.events.record({
+        activityId: id,
+        type: 'ASSIGNED',
+        actorId,
+        targetUserId,
+      });
+    }
+    for (const targetUserId of removed) {
+      await this.events.record({
+        activityId: id,
+        type: 'UNASSIGNED',
+        actorId,
+        targetUserId,
+      });
+    }
+
     const result = await this.findOne(id);
-    if (dto.userIds.length > 0) {
+    if (added.length > 0) {
       await this.notifications.activityAssigned(
         result.id,
         result.title,
-        dto.userIds,
+        added,
+        actorId,
       );
     }
     return result;
   }
 
-  async unassignUser(activityId: string, userId: string) {
+  async unassignUser(activityId: string, userId: string, actorId: string) {
     await this.findOne(activityId);
 
-    await this.prisma.activityAssignment.deleteMany({
+    const { count } = await this.prisma.activityAssignment.deleteMany({
       where: {
         activityId,
         userId,
       },
     });
+
+    if (count > 0) {
+      await this.events.record({
+        activityId,
+        type: 'UNASSIGNED',
+        actorId,
+        targetUserId: userId,
+      });
+    }
 
     return { message: 'Usuario desasignado exitosamente' };
   }

@@ -20,8 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { TagsService } from './tags.service';
 import { CreateTagDto, UpdateTagDto } from './dto';
-import { Roles } from '../../common/decorators';
-import { Role } from '@prisma/client';
+import { RequirePermissions } from '../../common/decorators';
 
 @ApiTags('tags')
 @ApiBearerAuth('JWT-auth')
@@ -30,7 +29,7 @@ export class TagsController {
   constructor(private readonly tagsService: TagsService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
+  @RequirePermissions('tag:create')
   @ApiOperation({ summary: 'Crear nueva etiqueta' })
   @ApiResponse({ status: 201, description: 'Etiqueta creada exitosamente' })
   @ApiResponse({ status: 409, description: 'Ya existe una etiqueta con ese nombre' })
@@ -63,7 +62,7 @@ export class TagsController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('tag:update')
   @ApiOperation({ summary: 'Actualizar etiqueta' })
   @ApiParam({ name: 'id', description: 'ID de la etiqueta' })
   @ApiResponse({ status: 200, description: 'Etiqueta actualizada' })
@@ -75,7 +74,7 @@ export class TagsController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('tag:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar etiqueta' })
   @ApiParam({ name: 'id', description: 'ID de la etiqueta' })

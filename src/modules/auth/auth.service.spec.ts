@@ -5,7 +5,6 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException, ConflictException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { Role } from '@prisma/client';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -60,7 +59,7 @@ describe('AuthService', () => {
       jest.spyOn(bcrypt, 'hash').mockImplementation(() => Promise.resolve('hashed'));
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({
-        id: '1', email: dto.email, name: dto.name, role: Role.EMPLEADO, createdAt: new Date(),
+        id: '1', email: dto.email, name: dto.name, createdAt: new Date(),
       });
       mockPrisma.refreshToken.create.mockResolvedValue({});
 
@@ -84,7 +83,7 @@ describe('AuthService', () => {
     it('should login with valid credentials', async () => {
       const mockUser = {
         id: '1', email: dto.email, password: 'hashed', name: 'Test',
-        role: Role.EMPLEADO, isActive: true,
+        isActive: true,
       };
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(true));

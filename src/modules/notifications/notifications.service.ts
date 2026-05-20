@@ -89,13 +89,21 @@ export class NotificationsService {
     }
   }
 
+  /** Usuarios que pueden revisar solicitudes (permiso stagechange:review). */
   private async adminIds(): Promise<string[]> {
     try {
-      const admins = await this.prisma.user.findMany({
-        where: { role: 'ADMIN', isActive: true },
+      const reviewers = await this.prisma.user.findMany({
+        where: {
+          isActive: true,
+          appRole: {
+            permissions: {
+              some: { permission: { key: 'stagechange:review' } },
+            },
+          },
+        },
         select: { id: true },
       });
-      return admins.map((a) => a.id);
+      return reviewers.map((a) => a.id);
     } catch {
       return [];
     }

@@ -6,16 +6,17 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Role } from '@prisma/client';
 import { promises as fs } from 'fs';
 import { randomUUID } from 'crypto';
 import { extname, join, resolve } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadFileDto } from './dto';
+import { hasAnyPermission } from '../../common/permissions';
+import { ActivityEventsService } from '../activity-events/activity-events.service';
 
 interface AuthUser {
   id: string;
-  role: Role | string;
+  permissions?: string[];
 }
 
 // Allowlist de tipos permitidos (imágenes y documentos).
@@ -48,6 +49,7 @@ export class FilesService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private events: ActivityEventsService,
   ) {
     const dir = this.config.get<string>('upload.dir') || 'uploads';
     this.uploadDir = resolve(process.cwd(), dir);
@@ -109,9 +111,9 @@ export class FilesService {
     return scComment.stageChangeRequest.activityId;
   }
 
-  /** ADMIN puede todo; un empleado solo si está asignado a la actividad. */
+  /** 'file:read:any' accede a cualquier actividad; si no, debe estar asignado. */
   private async assertCanAccessActivity(activityId: string, user: AuthUser) {
-    if (user.role === Role.ADMIN) return;
+    if (hasAnyPermission(user.permissions, ['file:read:any'])) return;
 
     const assignment = await this.prisma.activityAssignment.findFirst({
       where: { activityId, userId: user.id },
@@ -170,6 +172,24 @@ export class FilesService {
           commentId: dto.commentId ?? null,
           stageChangeRequestId: dto.stageChangeRequestId ?? null,
           stageChangeCommentId: dto.stageChangeCommentId ?? null,
+        },
+      });
+      await this.events.record({
+        activityId,
+        type: 'FILE_UPLOADED',
+        actorId: user.id,
+        fileId: record.id,
+        note: record.originalName,
+        metadata: {
+          mimeType: record.mimeType,
+          size: record.size,
+          targetType: dto.commentId
+            ? 'comment'
+            : dto.stageChangeRequestId
+              ? 'stageChangeRequest'
+              : dto.stageChangeCommentId
+                ? 'stageChangeComment'
+                : 'activity',
         },
       });
       return this.serialize(record);
@@ -231,9 +251,16 @@ export class FilesService {
   async remove(id: string, user: AuthUser) {
     const file = await this.findOneEntity(id);
 
-    if (user.role !== Role.ADMIN && file.uploadedById !== user.id) {
+    const isOwner = file.uploadedById === user.id;
+    const allowed = isOwner
+      ? hasAnyPermission(user.permissions, [
+          'file:delete:own',
+          'file:delete:any',
+        ])
+      : hasAnyPermission(user.permissions, ['file:delete:any']);
+    if (!allowed) {
       throw new ForbiddenException(
-        'Solo quien subió el archivo o un administrador puede eliminarlo',
+        'No tienes permisos para eliminar este archivo',
       );
     }
 

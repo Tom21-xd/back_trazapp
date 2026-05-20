@@ -18,11 +18,12 @@ const USER_PUBLIC_SELECT = {
   name: true,
   phone: true,
   avatar: true,
-  role: true,
   isActive: true,
   lastLoginAt: true,
   createdAt: true,
   updatedAt: true,
+  appRoleId: true,
+  appRole: { select: { id: true, name: true } },
 } as const;
 
 @Injectable()
@@ -53,7 +54,6 @@ export class UsersService {
         name: true,
         phone: true,
         avatar: true,
-        role: true,
         isActive: true,
         lastLoginAt: true,
         createdAt: true,
@@ -88,7 +88,6 @@ export class UsersService {
         name: true,
         phone: true,
         avatar: true,
-        role: true,
         isActive: true,
         lastLoginAt: true,
         createdAt: true,
@@ -126,7 +125,6 @@ export class UsersService {
         name: true,
         phone: true,
         avatar: true,
-        role: true,
         isActive: true,
         lastLoginAt: true,
         createdAt: true,

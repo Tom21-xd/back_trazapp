@@ -20,6 +20,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Error interno del servidor';
+    let dbError = false;
+    const isProd = process.env.NODE_ENV === 'production';
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -28,9 +30,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         typeof res === 'string'
           ? res
           : ((res as any).message ?? exception.message);
-    } else if (
-      exception instanceof Prisma.PrismaClientKnownRequestError
-    ) {
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      dbError = true;
       // Mapeo de los errores de Prisma más comunes a códigos HTTP correctos
       switch (exception.code) {
         case 'P2002': {
@@ -49,22 +50,45 @@ export class HttpExceptionFilter implements ExceptionFilter {
           status = HttpStatus.BAD_REQUEST;
           message = 'Referencia inválida: el recurso relacionado no existe';
           break;
+        case 'P2021':
+        case 'P2022':
+          // Tabla/columna inexistente => esquema desincronizado (faltan migraciones)
+          status = HttpStatus.INTERNAL_SERVER_ERROR;
+          message =
+            `La base de datos no está sincronizada con el esquema [${exception.code}]. ` +
+            'Aplica las migraciones: `npm run prisma:deploy` (o `npm run db:reset` en dev).';
+          break;
         default:
           status = HttpStatus.BAD_REQUEST;
-          message = 'Error de base de datos';
+          message = isProd
+            ? `Error de base de datos [${exception.code}]`
+            : `Error de base de datos [${exception.code}]: ${exception.message
+                .replace(/\n/g, ' ')
+                .slice(0, 300)}`;
       }
-    } else if (
-      exception instanceof Prisma.PrismaClientValidationError
-    ) {
+    } else if (exception instanceof Prisma.PrismaClientValidationError) {
+      dbError = true;
       status = HttpStatus.BAD_REQUEST;
-      message = 'Datos inválidos para la operación solicitada';
+      message = isProd
+        ? 'Datos inválidos para la operación solicitada'
+        : `Consulta Prisma inválida: ${exception.message
+            .replace(/\n/g, ' ')
+            .slice(0, 300)}`;
+    } else if (
+      exception instanceof Prisma.PrismaClientInitializationError
+    ) {
+      dbError = true;
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      message =
+        'No se pudo conectar a la base de datos. Verifica DATABASE_URL y que PostgreSQL esté activo.';
     }
 
-    // Logueamos SIEMPRE lo inesperado (5xx) con la traza real para poder
-    // depurar en producción; los 4xx solo en debug.
-    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+    // 5xx y errores de BD siempre con traza/código real para diagnosticar.
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR || dbError) {
       this.logger.error(
-        `${request.method} ${request.url} -> ${status}`,
+        `${request.method} ${request.url} -> ${status}: ${JSON.stringify(
+          message,
+        )}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
     } else {

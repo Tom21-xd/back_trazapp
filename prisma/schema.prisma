@@ -19,11 +19,6 @@ datasource db {
 // ENUMS
 // ============================================
 
-enum Role {
-  ADMIN
-  EMPLEADO
-}
-
 enum Priority {
   BAJA
   MEDIA
@@ -66,6 +61,20 @@ enum AuditAction {
   ASSIGNMENT_REMOVED
 }
 
+// Línea de tiempo inmutable de cada actividad (trazabilidad)
+enum ActivityEventType {
+  CREATED
+  UPDATED
+  STAGE_CHANGED
+  STAGE_CHANGE_REQUESTED
+  STAGE_CHANGE_APPROVED
+  STAGE_CHANGE_REJECTED
+  ASSIGNED
+  UNASSIGNED
+  COMMENT_ADDED
+  FILE_UPLOADED
+}
+
 // ============================================
 // USUARIOS Y AUTENTICACIÓN
 // ============================================
@@ -77,11 +86,15 @@ model User {
   name        String
   phone       String? // Teléfono de contacto
   avatar      String? // URL o path de la foto de perfil
-  role        Role      @default(EMPLEADO)
   isActive    Boolean   @default(true)
   lastLoginAt DateTime? // Último acceso
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  // Rol configurable (RBAC granular). El enum `role` se conserva como
+  // fallback legacy y para los chequeos de propiedad de servicios.
+  appRoleId String?
+  appRole   AppRole? @relation(fields: [appRoleId], references: [id])
 
   // Relaciones
   assignedActivities  ActivityAssignment[]
@@ -94,7 +107,57 @@ model User {
   refreshTokens       RefreshToken[]
   auditLogs           AuditLog[]
 
+  // Trazabilidad de actividades
+  activityEventsAsActor  ActivityEvent[] @relation("ActivityEventActor")
+  activityEventsAsTarget ActivityEvent[] @relation("ActivityEventTarget")
+
+  @@index([appRoleId])
   @@map("users")
+}
+
+// ============================================
+// RBAC GRANULAR (roles y permisos configurables)
+// ============================================
+
+model AppRole {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false) // roles base, no eliminables
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("app_roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique // ej: "project:create"
+  description String
+  group       String // ej: "Proyectos"
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id String @id @default(uuid())
+
+  roleId String
+  role   AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
 }
 
 model RefreshToken {
@@ -229,6 +292,10 @@ model Stage {
   stageChangeFroms  StageChangeRequest[]   @relation("FromStage")
   stageChangeTos    StageChangeRequest[]   @relation("ToStage")
 
+  // Trazabilidad
+  eventsFrom ActivityEvent[] @relation("ActivityEventFromStage")
+  eventsTo   ActivityEvent[] @relation("ActivityEventToStage")
+
   @@map("stages")
 }
 
@@ -263,6 +330,9 @@ model Activity {
   // Dependencias entre actividades
   dependsOn  ActivityDependency[] @relation("DependentActivity")
   dependedBy ActivityDependency[] @relation("RequiredActivity")
+
+  // Timeline inmutable
+  events ActivityEvent[]
 
   @@index([projectId])
   @@index([currentStageId])
@@ -373,6 +443,9 @@ model StageChangeRequest {
   // Archivos adjuntos a la solicitud inicial
   files File[]
 
+  // Eventos de timeline que referencian esta solicitud
+  events ActivityEvent[]
+
   @@index([activityId])
   @@index([status])
   @@index([requestedById])
@@ -425,6 +498,9 @@ model Comment {
   // Archivos adjuntos al comentario
   files File[]
 
+  // Eventos de timeline que referencian este comentario
+  events ActivityEvent[]
+
   @@index([activityId])
   @@index([userId])
   @@map("comments")
@@ -459,6 +535,9 @@ model File {
 
   stageChangeCommentId String?
   stageChangeComment   StageChangeComment? @relation(fields: [stageChangeCommentId], references: [id], onDelete: Cascade)
+
+  // Eventos de timeline que referencian este archivo
+  events ActivityEvent[]
 
   @@index([activityId])
   @@index([commentId])
@@ -516,4 +595,55 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ============================================
+// TIMELINE INMUTABLE POR ACTIVIDAD (trazabilidad)
+// Captura quién hizo qué sobre la actividad en cada momento.
+// Las tablas actuales (ActivityAssignment, ActivityStageHistory)
+// mantienen el ESTADO presente; ActivityEvent es la HISTORIA.
+// ============================================
+
+model ActivityEvent {
+  id        String            @id @default(uuid())
+  type      ActivityEventType
+  createdAt DateTime          @default(now())
+
+  // Actividad sobre la que ocurre
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  // Actor: quien provocó el evento
+  actorId String
+  actor   User   @relation("ActivityEventActor", fields: [actorId], references: [id])
+
+  // Objetivo (asignaciones/desasignaciones)
+  targetUserId String?
+  targetUser   User?   @relation("ActivityEventTarget", fields: [targetUserId], references: [id])
+
+  // Cambio de etapa
+  fromStageId String?
+  fromStage   Stage?  @relation("ActivityEventFromStage", fields: [fromStageId], references: [id])
+  toStageId   String?
+  toStage     Stage?  @relation("ActivityEventToStage", fields: [toStageId], references: [id])
+
+  // Referencias a entidades relacionadas
+  stageChangeRequestId String?
+  stageChangeRequest   StageChangeRequest? @relation(fields: [stageChangeRequestId], references: [id], onDelete: SetNull)
+
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+
+  fileId String?
+  file   File?   @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  // Texto resumido + payload extra (diff de campos, snippet, etc.)
+  note     String?
+  metadata Json?
+
+  @@index([activityId, createdAt])
+  @@index([actorId])
+  @@index([targetUserId])
+  @@index([type])
+  @@map("activity_events")
 }

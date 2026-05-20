@@ -2,8 +2,18 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CommentsService } from './comments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ActivityEventsService } from '../activity-events/activity-events.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Role } from '@prisma/client';
+
+const owner = {
+  id: 'user1',
+  permissions: ['comment:update:own', 'comment:delete:own'],
+};
+const moderator = {
+  id: 'admin1',
+  permissions: ['comment:update:any', 'comment:delete:any'],
+};
+const stranger = { id: 'user2', permissions: [] as string[] };
 
 describe('CommentsService', () => {
   let service: CommentsService;
@@ -36,7 +46,6 @@ describe('CommentsService', () => {
     user: {
       id: 'user1',
       name: 'Test User',
-      role: Role.EMPLEADO,
     },
   };
 
@@ -48,6 +57,10 @@ describe('CommentsService', () => {
         {
           provide: NotificationsService,
           useValue: { newComment: jest.fn() },
+        },
+        {
+          provide: ActivityEventsService,
+          useValue: { record: jest.fn(), list: jest.fn() },
         },
       ],
     }).compile();
@@ -122,7 +135,7 @@ describe('CommentsService', () => {
         content: updateDto.content,
       });
 
-      const result = await service.update('1', updateDto, 'user1', Role.EMPLEADO);
+      const result = await service.update('1', updateDto, owner);
 
       expect(result.content).toBe(updateDto.content);
     });
@@ -138,7 +151,7 @@ describe('CommentsService', () => {
         content: updateDto.content,
       });
 
-      const result = await service.update('1', updateDto, 'admin1', Role.ADMIN);
+      const result = await service.update('1', updateDto, moderator);
 
       expect(result.content).toBe(updateDto.content);
     });
@@ -151,7 +164,7 @@ describe('CommentsService', () => {
       mockPrismaService.comment.findUnique.mockResolvedValue(mockComment);
 
       await expect(
-        service.update('1', updateDto, 'user2', Role.EMPLEADO),
+        service.update('1', updateDto, stranger),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -159,7 +172,7 @@ describe('CommentsService', () => {
       mockPrismaService.comment.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.update('999', { content: 'Test' }, 'user1', Role.EMPLEADO),
+        service.update('999', { content: 'Test' }, owner),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -169,7 +182,7 @@ describe('CommentsService', () => {
       mockPrismaService.comment.findUnique.mockResolvedValue(mockComment);
       mockPrismaService.comment.delete.mockResolvedValue(mockComment);
 
-      await service.remove('1', 'user1', Role.EMPLEADO);
+      await service.remove('1', owner);
 
       expect(mockPrismaService.comment.delete).toHaveBeenCalledWith({
         where: { id: '1' },
@@ -180,7 +193,7 @@ describe('CommentsService', () => {
       mockPrismaService.comment.findUnique.mockResolvedValue(mockComment);
       mockPrismaService.comment.delete.mockResolvedValue(mockComment);
 
-      await service.remove('1', 'admin1', Role.ADMIN);
+      await service.remove('1', moderator);
 
       expect(mockPrismaService.comment.delete).toHaveBeenCalled();
     });
@@ -188,7 +201,7 @@ describe('CommentsService', () => {
     it('should throw ForbiddenException if user is not owner', async () => {
       mockPrismaService.comment.findUnique.mockResolvedValue(mockComment);
 
-      await expect(service.remove('1', 'user2', Role.EMPLEADO)).rejects.toThrow(
+      await expect(service.remove('1', stranger)).rejects.toThrow(
         ForbiddenException,
       );
     });

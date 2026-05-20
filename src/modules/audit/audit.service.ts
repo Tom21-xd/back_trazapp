@@ -58,7 +58,7 @@ export class AuditService {
     if (filters.action) where.action = filters.action;
 
     const include = {
-      user: { select: { id: true, name: true, email: true, role: true } },
+      user: { select: { id: true, name: true, email: true } },
     };
     const resolved = resolvePagination(pagination);
     const [data, total] = await this.prisma.$transaction([

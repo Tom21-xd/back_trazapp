@@ -18,7 +18,9 @@ import { FilesModule } from './modules/files/files.module';
 import { ProjectTypesModule } from './modules/project-types/project-types.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditModule } from './modules/audit/audit.module';
-import { JwtAuthGuard, RolesGuard } from './common/guards';
+import { RolesModule } from './modules/roles/roles.module';
+import { ActivityEventsModule } from './modules/activity-events/activity-events.module';
+import { JwtAuthGuard, PermissionsGuard } from './common/guards';
 import { HttpExceptionFilter } from './common/filters';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
@@ -52,6 +54,8 @@ import { validate } from './config/env.validation';
     ProjectTypesModule,
     NotificationsModule,
     AuditModule,
+    RolesModule,
+    ActivityEventsModule,
   ],
   controllers: [AppController],
   providers: [
@@ -66,7 +70,7 @@ import { validate } from './config/env.validation';
     },
     {
       provide: APP_GUARD,
-      useClass: RolesGuard,
+      useClass: PermissionsGuard,
     },
     {
       provide: APP_FILTER,

@@ -20,8 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto, UpdateProjectDto } from './dto';
-import { Roles } from '../../common/decorators';
-import { Role } from '@prisma/client';
+import { RequirePermissions } from '../../common/decorators';
 
 @ApiTags('projects')
 @ApiBearerAuth('JWT-auth')
@@ -30,7 +29,7 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
+  @RequirePermissions('project:create')
   @ApiOperation({ summary: 'Crear nuevo proyecto' })
   @ApiResponse({ status: 201, description: 'Proyecto creado exitosamente' })
   @ApiResponse({ status: 403, description: 'No autorizado' })
@@ -39,6 +38,7 @@ export class ProjectsController {
   }
 
   @Get()
+  @RequirePermissions('project:read')
   @ApiOperation({ summary: 'Obtener todos los proyectos (paginado)' })
   @ApiQuery({ name: 'includeInactive', required: false, description: 'Incluir proyectos inactivos' })
   @ApiQuery({ name: 'page', required: false })
@@ -59,6 +59,7 @@ export class ProjectsController {
   }
 
   @Get(':id')
+  @RequirePermissions('project:read')
   @ApiOperation({ summary: 'Obtener proyecto por ID' })
   @ApiParam({ name: 'id', description: 'ID del proyecto' })
   @ApiResponse({ status: 200, description: 'Proyecto encontrado' })
@@ -68,6 +69,7 @@ export class ProjectsController {
   }
 
   @Get(':id/stats')
+  @RequirePermissions('project:read')
   @ApiOperation({ summary: 'Obtener estadísticas del proyecto' })
   @ApiParam({ name: 'id', description: 'ID del proyecto' })
   @ApiResponse({ status: 200, description: 'Estadísticas del proyecto' })
@@ -77,7 +79,7 @@ export class ProjectsController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('project:update')
   @ApiOperation({ summary: 'Actualizar proyecto' })
   @ApiParam({ name: 'id', description: 'ID del proyecto' })
   @ApiResponse({ status: 200, description: 'Proyecto actualizado' })
@@ -88,7 +90,7 @@ export class ProjectsController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('project:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar proyecto' })
   @ApiParam({ name: 'id', description: 'ID del proyecto' })

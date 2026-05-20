@@ -38,19 +38,17 @@ export class AuthService {
         password: hashedPassword,
         name: dto.name,
         phone: dto.phone,
-        role: dto.role || 'EMPLEADO',
       },
       select: {
         id: true,
         email: true,
         name: true,
-        role: true,
         createdAt: true,
       },
     });
 
     // Generar tokens
-    const tokens = await this.generateTokens(user.id, user.email, user.role);
+    const tokens = await this.generateTokens(user.id, user.email);
 
     return {
       user,
@@ -86,14 +84,14 @@ export class AuthService {
     });
 
     // Generar tokens
-    const tokens = await this.generateTokens(user.id, user.email, user.role);
+    const tokens = await this.generateTokens(user.id, user.email);
 
     return {
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        appRoleId: user.appRoleId,
       },
       ...tokens,
     };
@@ -125,11 +123,7 @@ export class AuthService {
       }
 
       // Generar nuevos tokens
-      const tokens = await this.generateTokens(
-        payload.sub,
-        payload.email,
-        payload.role,
-      );
+      const tokens = await this.generateTokens(payload.sub, payload.email);
 
       // Revocar el refresh token usado
       await this.prisma.refreshToken.update({
@@ -161,11 +155,10 @@ export class AuthService {
     return { message: 'Logout exitoso' };
   }
 
-  private async generateTokens(userId: string, email: string, role: string) {
+  private async generateTokens(userId: string, email: string) {
     const payload: JwtPayload = {
       sub: userId,
       email,
-      role,
     };
 
     // Generar access token

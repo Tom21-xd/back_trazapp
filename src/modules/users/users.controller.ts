@@ -20,8 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
-import { Roles } from '../../common/decorators';
-import { Role } from '@prisma/client';
+import { RequirePermissions } from '../../common/decorators';
 
 @ApiTags('users')
 @ApiBearerAuth('JWT-auth')
@@ -30,7 +29,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
+  @RequirePermissions('user:create')
   @ApiOperation({ summary: 'Crear nuevo usuario' })
   @ApiResponse({ status: 201, description: 'Usuario creado exitosamente' })
   @ApiResponse({ status: 409, description: 'El email ya está registrado' })
@@ -40,7 +39,7 @@ export class UsersController {
   }
 
   @Get()
-  @Roles(Role.ADMIN)
+  @RequirePermissions('user:read')
   @ApiOperation({ summary: 'Obtener todos los usuarios (paginado)' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
@@ -56,7 +55,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('user:read')
   @ApiOperation({ summary: 'Obtener usuario por ID' })
   @ApiParam({ name: 'id', description: 'ID del usuario' })
   @ApiResponse({ status: 200, description: 'Usuario encontrado' })
@@ -67,7 +66,7 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('user:update')
   @ApiOperation({ summary: 'Actualizar usuario' })
   @ApiParam({ name: 'id', description: 'ID del usuario' })
   @ApiResponse({ status: 200, description: 'Usuario actualizado' })
@@ -78,7 +77,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('user:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar usuario' })
   @ApiParam({ name: 'id', description: 'ID del usuario' })
@@ -90,7 +89,7 @@ export class UsersController {
   }
 
   @Patch(':id/deactivate')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('user:activate')
   @ApiOperation({ summary: 'Desactivar usuario' })
   @ApiParam({ name: 'id', description: 'ID del usuario' })
   @ApiResponse({ status: 200, description: 'Usuario desactivado' })
@@ -101,7 +100,7 @@ export class UsersController {
   }
 
   @Patch(':id/activate')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('user:activate')
   @ApiOperation({ summary: 'Activar usuario' })
   @ApiParam({ name: 'id', description: 'ID del usuario' })
   @ApiResponse({ status: 200, description: 'Usuario activado' })

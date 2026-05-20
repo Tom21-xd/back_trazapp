@@ -21,8 +21,14 @@ import {
   ReviewStageChangeDto,
   AddCommentDto,
 } from './dto';
-import { CurrentUser, Roles } from '../../common/decorators';
-import { Role, StageChangeStatus } from '@prisma/client';
+import {
+  CurrentUser,
+  RequirePermissions,
+  RequireAnyPermission,
+} from '../../common/decorators';
+import { StageChangeStatus } from '@prisma/client';
+
+type AuthUser = { id: string; permissions: string[] };
 
 @ApiTags('stage-changes')
 @ApiBearerAuth('JWT-auth')
@@ -31,18 +37,20 @@ export class StageChangesController {
   constructor(private readonly stageChangesService: StageChangesService) {}
 
   @Post()
+  @RequirePermissions('stagechange:create')
   @ApiOperation({ summary: 'Crear solicitud de cambio de etapa' })
   @ApiResponse({ status: 201, description: 'Solicitud creada exitosamente' })
   @ApiResponse({ status: 404, description: 'Actividad o etapa no encontrada' })
   @ApiResponse({ status: 400, description: 'La actividad ya está en la etapa solicitada' })
   createRequest(
     @Body() dto: CreateStageChangeRequestDto,
-    @CurrentUser() user: { id: string; role: Role },
+    @CurrentUser() user: { id: string; permissions: string[] },
   ) {
     return this.stageChangesService.createRequest(dto, user);
   }
 
   @Get()
+  @RequireAnyPermission('stagechange:read:own', 'stagechange:read:any')
   @ApiOperation({ summary: 'Obtener todas las solicitudes de cambio' })
   @ApiQuery({ name: 'activityId', required: false, description: 'Filtrar por actividad' })
   @ApiQuery({ name: 'status', required: false, enum: StageChangeStatus, description: 'Filtrar por estado' })
@@ -51,6 +59,7 @@ export class StageChangesController {
   @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
   @ApiResponse({ status: 200, description: 'Lista paginada de solicitudes' })
   findAll(
+    @CurrentUser() user: AuthUser,
     @Query('activityId') activityId?: string,
     @Query('status') status?: StageChangeStatus,
     @Query('page') page?: string,
@@ -60,11 +69,12 @@ export class StageChangesController {
     return this.stageChangesService.findAll(
       { activityId, status },
       { page, limit, all },
+      user,
     );
   }
 
   @Get('pending')
-  @Roles(Role.ADMIN)
+  @RequireAnyPermission('stagechange:read:any', 'stagechange:review')
   @ApiOperation({ summary: 'Obtener solicitudes pendientes (paginado)' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
@@ -80,6 +90,7 @@ export class StageChangesController {
   }
 
   @Get('my-requests')
+  @RequireAnyPermission('stagechange:read:own', 'stagechange:read:any')
   @ApiOperation({ summary: 'Obtener mis solicitudes (paginado)' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
@@ -99,6 +110,7 @@ export class StageChangesController {
   }
 
   @Get(':id')
+  @RequireAnyPermission('stagechange:read:own', 'stagechange:read:any')
   @ApiOperation({ summary: 'Obtener solicitud por ID' })
   @ApiParam({ name: 'id', description: 'ID de la solicitud' })
   @ApiResponse({ status: 200, description: 'Solicitud encontrada' })
@@ -108,7 +120,7 @@ export class StageChangesController {
   }
 
   @Patch(':id/review')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('stagechange:review')
   @ApiOperation({ summary: 'Revisar solicitud de cambio (aprobar/rechazar)' })
   @ApiParam({ name: 'id', description: 'ID de la solicitud' })
   @ApiResponse({ status: 200, description: 'Solicitud revisada exitosamente' })
@@ -124,6 +136,7 @@ export class StageChangesController {
   }
 
   @Post(':id/comments')
+  @RequirePermissions('stagechange:comment')
   @ApiOperation({ summary: 'Agregar comentario a la solicitud' })
   @ApiParam({ name: 'id', description: 'ID de la solicitud' })
   @ApiResponse({ status: 201, description: 'Comentario agregado exitosamente' })
@@ -131,7 +144,7 @@ export class StageChangesController {
   addComment(
     @Param('id') requestId: string,
     @Body() dto: AddCommentDto,
-    @CurrentUser() user: { id: string; role: Role },
+    @CurrentUser() user: { id: string; permissions: string[] },
   ) {
     return this.stageChangesService.addComment(requestId, dto, user);
   }

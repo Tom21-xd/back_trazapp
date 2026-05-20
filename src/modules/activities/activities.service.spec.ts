@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ActivitiesService } from './activities.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ActivityEventsService } from '../activity-events/activity-events.service';
 import { NotFoundException } from '@nestjs/common';
 import { Priority } from '@prisma/client';
 
@@ -65,6 +66,10 @@ describe('ActivitiesService', () => {
             stageChangeReviewed: jest.fn(),
             newComment: jest.fn(),
           },
+        },
+        {
+          provide: ActivityEventsService,
+          useValue: { record: jest.fn(), list: jest.fn() },
         },
       ],
     }).compile();
@@ -155,7 +160,7 @@ describe('ActivitiesService', () => {
         title: 'Updated',
       });
 
-      const result = await service.update('1', { title: 'Updated' });
+      const result = await service.update('1', { title: 'Updated' }, 'admin1');
 
       expect(result.title).toBe('Updated');
       expect(mockPrisma.$transaction).toHaveBeenCalled();
@@ -180,7 +185,7 @@ describe('ActivitiesService', () => {
         currentStageId: 'stage2',
       });
 
-      await service.update('1', { currentStageId: 'stage2' });
+      await service.update('1', { currentStageId: 'stage2' }, 'admin1');
 
       expect(mockPrisma.activityStageHistory.update).toHaveBeenCalledWith({
         where: { id: 'h1' },

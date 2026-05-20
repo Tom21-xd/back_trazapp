@@ -5,10 +5,9 @@ import {
   MinLength,
   MaxLength,
   IsOptional,
-  IsEnum,
+  IsUUID,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -58,11 +57,9 @@ export class CreateUserDto {
   avatar?: string;
 
   @ApiPropertyOptional({
-    enum: Role,
-    example: Role.EMPLEADO,
-    description: 'Rol del usuario',
+    description: 'ID del rol (AppRole) asignado al usuario',
   })
-  @IsEnum(Role)
+  @IsUUID()
   @IsOptional()
-  role?: Role;
+  appRoleId?: string;
 }

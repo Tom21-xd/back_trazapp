@@ -27,7 +27,11 @@ import {
 } from '@nestjs/swagger';
 import { FilesService } from './files.service';
 import { UploadFileDto } from './dto';
-import { CurrentUser } from '../../common/decorators';
+import {
+  CurrentUser,
+  RequirePermissions,
+  RequireAnyPermission,
+} from '../../common/decorators';
 
 const MAX_FILE_BYTES =
   (Number(process.env.MAX_FILE_SIZE_MB) || 10) * 1024 * 1024;
@@ -39,6 +43,7 @@ export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
   @Post()
+  @RequirePermissions('file:upload')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary:
@@ -56,7 +61,7 @@ export class FilesController {
   upload(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadFileDto,
-    @CurrentUser() user: { id: string; role: string },
+    @CurrentUser() user: { id: string; permissions: string[] },
   ) {
     return this.filesService.upload(file, dto, user);
   }
@@ -68,7 +73,7 @@ export class FilesController {
   @ApiResponse({ status: 200, description: 'Lista de archivos' })
   list(
     @Query() query: UploadFileDto,
-    @CurrentUser() user: { id: string; role: string },
+    @CurrentUser() user: { id: string; permissions: string[] },
   ) {
     return this.filesService.listByTarget(query, user);
   }
@@ -81,7 +86,7 @@ export class FilesController {
   async download(
     @Param('id') id: string,
     @Query('download') download: string,
-    @CurrentUser() user: { id: string; role: string },
+    @CurrentUser() user: { id: string; permissions: string[] },
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     const { file, absolutePath } = await this.filesService.getForDownload(
@@ -103,6 +108,7 @@ export class FilesController {
   }
 
   @Delete(':id')
+  @RequireAnyPermission('file:delete:own', 'file:delete:any')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiParam({ name: 'id', description: 'ID del archivo' })
   @ApiOperation({ summary: 'Eliminar un archivo' })
@@ -111,7 +117,7 @@ export class FilesController {
   @ApiResponse({ status: 404, description: 'Archivo no encontrado' })
   remove(
     @Param('id') id: string,
-    @CurrentUser() user: { id: string; role: string },
+    @CurrentUser() user: { id: string; permissions: string[] },
   ) {
     return this.filesService.remove(id, user);
   }

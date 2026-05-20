@@ -20,7 +20,11 @@ import {
 } from '@nestjs/swagger';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto, UpdateCommentDto } from './dto';
-import { CurrentUser } from '../../common/decorators';
+import {
+  CurrentUser,
+  RequirePermissions,
+  RequireAnyPermission,
+} from '../../common/decorators';
 
 @ApiTags('comments')
 @ApiBearerAuth('JWT-auth')
@@ -29,6 +33,7 @@ export class CommentsController {
   constructor(private readonly commentsService: CommentsService) {}
 
   @Post()
+  @RequirePermissions('comment:create')
   @ApiOperation({ summary: 'Crear nuevo comentario' })
   @ApiResponse({ status: 201, description: 'Comentario creado exitosamente' })
   @ApiResponse({ status: 404, description: 'Actividad no encontrada' })
@@ -69,6 +74,7 @@ export class CommentsController {
   }
 
   @Patch(':id')
+  @RequireAnyPermission('comment:update:own', 'comment:update:any')
   @ApiOperation({ summary: 'Actualizar comentario' })
   @ApiParam({ name: 'id', description: 'ID del comentario' })
   @ApiResponse({ status: 200, description: 'Comentario actualizado' })
@@ -77,13 +83,13 @@ export class CommentsController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateCommentDto,
-    @CurrentUser('id') userId: string,
-    @CurrentUser('role') userRole: string,
+    @CurrentUser() user: { id: string; permissions: string[] },
   ) {
-    return this.commentsService.update(id, dto, userId, userRole as any);
+    return this.commentsService.update(id, dto, user);
   }
 
   @Delete(':id')
+  @RequireAnyPermission('comment:delete:own', 'comment:delete:any')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar comentario' })
   @ApiParam({ name: 'id', description: 'ID del comentario' })
@@ -92,9 +98,8 @@ export class CommentsController {
   @ApiResponse({ status: 403, description: 'No tienes permisos para eliminar este comentario' })
   remove(
     @Param('id') id: string,
-    @CurrentUser('id') userId: string,
-    @CurrentUser('role') userRole: string,
+    @CurrentUser() user: { id: string; permissions: string[] },
   ) {
-    return this.commentsService.remove(id, userId, userRole as any);
+    return this.commentsService.remove(id, user);
   }
 }

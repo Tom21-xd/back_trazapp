@@ -20,8 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { ProjectTypesService } from './project-types.service';
 import { CreateProjectTypeDto, UpdateProjectTypeDto } from './dto';
-import { Roles } from '../../common/decorators';
-import { Role } from '@prisma/client';
+import { RequirePermissions } from '../../common/decorators';
 
 @ApiTags('project-types')
 @ApiBearerAuth('JWT-auth')
@@ -30,7 +29,7 @@ export class ProjectTypesController {
   constructor(private readonly service: ProjectTypesService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
+  @RequirePermissions('projectType:create')
   @ApiOperation({ summary: 'Crear tipo de proyecto' })
   @ApiResponse({ status: 201, description: 'Tipo creado' })
   @ApiResponse({ status: 409, description: 'Nombre duplicado' })
@@ -62,7 +61,7 @@ export class ProjectTypesController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('projectType:update')
   @ApiParam({ name: 'id', description: 'ID del tipo' })
   @ApiOperation({ summary: 'Actualizar tipo de proyecto' })
   @ApiResponse({ status: 200, description: 'Tipo actualizado' })
@@ -72,7 +71,7 @@ export class ProjectTypesController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('projectType:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiParam({ name: 'id', description: 'ID del tipo' })
   @ApiOperation({ summary: 'Eliminar tipo de proyecto' })

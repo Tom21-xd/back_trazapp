@@ -8,8 +8,7 @@ import {
 } from '@nestjs/swagger';
 import { AuditAction } from '@prisma/client';
 import { AuditService } from './audit.service';
-import { Roles } from '../../common/decorators';
-import { Role } from '@prisma/client';
+import { RequirePermissions } from '../../common/decorators';
 
 @ApiTags('audit')
 @ApiBearerAuth('JWT-auth')
@@ -18,7 +17,7 @@ export class AuditController {
   constructor(private readonly audit: AuditService) {}
 
   @Get()
-  @Roles(Role.ADMIN)
+  @RequirePermissions('audit:read')
   @ApiOperation({ summary: 'Registro de auditoría (solo admin, paginado)' })
   @ApiQuery({ name: 'userId', required: false })
   @ApiQuery({ name: 'entityType', required: false })

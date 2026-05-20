@@ -10,28 +10,36 @@ import {
   ReviewStageChangeDto,
   AddCommentDto,
 } from './dto';
-import { Role, StageChangeStatus } from '@prisma/client';
+import { StageChangeStatus } from '@prisma/client';
 import { FILE_PUBLIC_SELECT } from '../../common/prisma/file-select';
+import { hasAnyPermission } from '../../common/permissions';
+
+interface AuthUser {
+  id: string;
+  permissions?: string[];
+}
 import {
   buildPaginated,
   resolvePagination,
   type PaginationQuery,
 } from '../../common/pagination';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ActivityEventsService } from '../activity-events/activity-events.service';
 
 @Injectable()
 export class StageChangesService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
+    private events: ActivityEventsService,
   ) {}
 
-  /** ADMIN siempre; un empleado solo si está asignado a la actividad. */
-  private async assertAssignedOrAdmin(
+  /** 'stagechange:manage:any' gestiona cualquiera; otros solo si están asignados. */
+  private async assertAssignedOrModerator(
     activityId: string,
-    user: { id: string; role: Role },
+    user: AuthUser,
   ) {
-    if (user.role === Role.ADMIN) return;
+    if (hasAnyPermission(user.permissions, ['stagechange:manage:any'])) return;
 
     const assignment = await this.prisma.activityAssignment.findFirst({
       where: { activityId, userId: user.id },
@@ -45,10 +53,7 @@ export class StageChangesService {
     }
   }
 
-  async createRequest(
-    dto: CreateStageChangeRequestDto,
-    user: { id: string; role: Role },
-  ) {
+  async createRequest(dto: CreateStageChangeRequestDto, user: AuthUser) {
     // Verificar que la actividad existe
     const activity = await this.prisma.activity.findUnique({
       where: { id: dto.activityId },
@@ -62,7 +67,7 @@ export class StageChangesService {
     }
 
     // Regla de asignación: el empleado debe estar asignado a la actividad
-    await this.assertAssignedOrAdmin(dto.activityId, user);
+    await this.assertAssignedOrModerator(dto.activityId, user);
 
     // Verificar que la etapa destino existe
     const toStage = await this.prisma.stage.findUnique({
@@ -101,17 +106,36 @@ export class StageChangesService {
       requester?.name ?? 'Un empleado',
     );
 
+    await this.events.record({
+      activityId: dto.activityId,
+      type: 'STAGE_CHANGE_REQUESTED',
+      actorId: user.id,
+      fromStageId: activity.currentStageId,
+      toStageId: dto.toStageId,
+      stageChangeRequestId: request.id,
+      note: dto.description.slice(0, 200),
+    });
+
     return request;
   }
 
   async findAll(
     filters?: { activityId?: string; status?: StageChangeStatus },
     pagination: PaginationQuery = {},
+    user?: AuthUser,
   ) {
     const where: any = {};
 
     if (filters?.activityId) where.activityId = filters.activityId;
     if (filters?.status) where.status = filters.status;
+
+    // Alcance: sin 'stagechange:read:any' solo ve sus propias solicitudes
+    if (
+      user &&
+      !hasAnyPermission(user.permissions, ['stagechange:read:any'])
+    ) {
+      where.requestedById = user.id;
+    }
 
     const resolved = resolvePagination(pagination);
     const [data, total] = await this.prisma.$transaction([
@@ -141,7 +165,6 @@ export class StageChangesService {
                 name: true,
                 email: true,
                 avatar: true,
-                role: true,
               },
             },
             files: FILE_PUBLIC_SELECT,
@@ -220,19 +243,28 @@ export class StageChangesService {
       dto.reviewComment,
     );
 
+    await this.events.record({
+      activityId: request.activityId,
+      type:
+        dto.status === StageChangeStatus.APROBADO
+          ? 'STAGE_CHANGE_APPROVED'
+          : 'STAGE_CHANGE_REJECTED',
+      actorId: reviewerId,
+      fromStageId: request.fromStageId,
+      toStageId: request.toStageId,
+      stageChangeRequestId: request.id,
+      note: dto.reviewComment?.slice(0, 200),
+    });
+
     return updated;
   }
 
-  async addComment(
-    requestId: string,
-    dto: AddCommentDto,
-    user: { id: string; role: Role },
-  ) {
+  async addComment(requestId: string, dto: AddCommentDto, user: AuthUser) {
     const request = await this.findOne(requestId);
 
-    // Puede comentar: admin, quien hizo la solicitud, o un asignado a la actividad
-    if (user.role !== Role.ADMIN && request.requestedById !== user.id) {
-      await this.assertAssignedOrAdmin(request.activityId, user);
+    // Puede comentar: moderador, quien hizo la solicitud, o un asignado
+    if (request.requestedById !== user.id) {
+      await this.assertAssignedOrModerator(request.activityId, user);
     }
 
     const comment = await this.prisma.stageChangeComment.create({
@@ -248,7 +280,6 @@ export class StageChangesService {
             name: true,
             email: true,
             avatar: true,
-            role: true,
           },
         },
         files: FILE_PUBLIC_SELECT,

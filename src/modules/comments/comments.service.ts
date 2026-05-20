@@ -5,20 +5,27 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCommentDto, UpdateCommentDto } from './dto';
-import { Role } from '@prisma/client';
 import { FILE_PUBLIC_SELECT } from '../../common/prisma/file-select';
+import { hasAnyPermission } from '../../common/permissions';
+
+interface AuthUser {
+  id: string;
+  permissions?: string[];
+}
 import {
   buildPaginated,
   resolvePagination,
   type PaginationQuery,
 } from '../../common/pagination';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ActivityEventsService } from '../activity-events/activity-events.service';
 
 @Injectable()
 export class CommentsService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
+    private events: ActivityEventsService,
   ) {}
 
   async create(dto: CreateCommentDto, userId: string) {
@@ -44,7 +51,6 @@ export class CommentsService {
             name: true,
             email: true,
             avatar: true,
-            role: true,
           },
         },
         files: FILE_PUBLIC_SELECT,
@@ -57,6 +63,14 @@ export class CommentsService {
       userId,
     );
 
+    await this.events.record({
+      activityId: dto.activityId,
+      type: 'COMMENT_ADDED',
+      actorId: userId,
+      commentId: comment.id,
+      note: comment.content.slice(0, 200),
+    });
+
     return comment;
   }
 
@@ -68,7 +82,6 @@ export class CommentsService {
           name: true,
           email: true,
           avatar: true,
-          role: true,
         },
       },
       files: FILE_PUBLIC_SELECT,
@@ -98,7 +111,6 @@ export class CommentsService {
             name: true,
             email: true,
             avatar: true,
-            role: true,
           },
         },
         activity: {
@@ -118,16 +130,17 @@ export class CommentsService {
     return comment;
   }
 
-  async update(
-    id: string,
-    dto: UpdateCommentDto,
-    userId: string,
-    userRole: Role,
-  ) {
+  async update(id: string, dto: UpdateCommentDto, user: AuthUser) {
     const comment = await this.findOne(id);
 
-    // Solo el autor o admin pueden editar
-    if (comment.userId !== userId && userRole !== Role.ADMIN) {
+    const isOwner = comment.userId === user.id;
+    const allowed = isOwner
+      ? hasAnyPermission(user.permissions, [
+          'comment:update:own',
+          'comment:update:any',
+        ])
+      : hasAnyPermission(user.permissions, ['comment:update:any']);
+    if (!allowed) {
       throw new ForbiddenException(
         'No tienes permisos para editar este comentario',
       );
@@ -143,7 +156,6 @@ export class CommentsService {
             name: true,
             email: true,
             avatar: true,
-            role: true,
           },
         },
         files: FILE_PUBLIC_SELECT,
@@ -153,11 +165,17 @@ export class CommentsService {
     return updated;
   }
 
-  async remove(id: string, userId: string, userRole: Role) {
+  async remove(id: string, user: AuthUser) {
     const comment = await this.findOne(id);
 
-    // Solo el autor o admin pueden eliminar
-    if (comment.userId !== userId && userRole !== Role.ADMIN) {
+    const isOwner = comment.userId === user.id;
+    const allowed = isOwner
+      ? hasAnyPermission(user.permissions, [
+          'comment:delete:own',
+          'comment:delete:any',
+        ])
+      : hasAnyPermission(user.permissions, ['comment:delete:any']);
+    if (!allowed) {
       throw new ForbiddenException(
         'No tienes permisos para eliminar este comentario',
       );

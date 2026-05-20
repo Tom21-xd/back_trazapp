@@ -24,8 +24,13 @@ import {
   UpdateActivityDto,
   AssignUsersDto,
 } from './dto';
-import { CurrentUser, Roles } from '../../common/decorators';
-import { Role } from '@prisma/client';
+import {
+  CurrentUser,
+  RequirePermissions,
+  RequireAnyPermission,
+} from '../../common/decorators';
+
+type AuthUser = { id: string; permissions: string[] };
 
 @ApiTags('activities')
 @ApiBearerAuth('JWT-auth')
@@ -34,7 +39,7 @@ export class ActivitiesController {
   constructor(private readonly activitiesService: ActivitiesService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
+  @RequirePermissions('activity:create')
   @ApiOperation({ summary: 'Crear nueva actividad' })
   @ApiResponse({ status: 201, description: 'Actividad creada exitosamente' })
   @ApiResponse({ status: 404, description: 'Proyecto o etapa no encontrada' })
@@ -47,6 +52,7 @@ export class ActivitiesController {
   }
 
   @Get()
+  @RequireAnyPermission('activity:read:own', 'activity:read:any')
   @ApiOperation({ summary: 'Obtener todas las actividades' })
   @ApiQuery({ name: 'projectId', required: false, description: 'Filtrar por proyecto' })
   @ApiQuery({ name: 'stageId', required: false, description: 'Filtrar por etapa' })
@@ -57,6 +63,7 @@ export class ActivitiesController {
   @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
   @ApiResponse({ status: 200, description: 'Lista paginada de actividades' })
   findAll(
+    @CurrentUser() user: AuthUser,
     @Query('projectId') projectId?: string,
     @Query('stageId') stageId?: string,
     @Query('assignedUserId') assignedUserId?: string,
@@ -68,10 +75,12 @@ export class ActivitiesController {
     return this.activitiesService.findAll(
       { projectId, stageId, assignedUserId, priority },
       { page, limit, all },
+      user,
     );
   }
 
   @Get('my-activities')
+  @RequireAnyPermission('activity:read:own', 'activity:read:any')
   @ApiOperation({ summary: 'Obtener mis actividades asignadas (paginado)' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
@@ -87,27 +96,33 @@ export class ActivitiesController {
   }
 
   @Get(':id')
+  @RequireAnyPermission('activity:read:own', 'activity:read:any')
   @ApiOperation({ summary: 'Obtener actividad por ID' })
   @ApiParam({ name: 'id', description: 'ID de la actividad' })
   @ApiResponse({ status: 200, description: 'Actividad encontrada' })
   @ApiResponse({ status: 404, description: 'Actividad no encontrada' })
-  findOne(@Param('id') id: string) {
-    return this.activitiesService.findOne(id);
+  @ApiResponse({ status: 403, description: 'Sin acceso a esta actividad' })
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.activitiesService.findOneScoped(id, user);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('activity:update')
   @ApiOperation({ summary: 'Actualizar actividad' })
   @ApiParam({ name: 'id', description: 'ID de la actividad' })
   @ApiResponse({ status: 200, description: 'Actividad actualizada' })
   @ApiResponse({ status: 404, description: 'Actividad no encontrada' })
   @ApiResponse({ status: 403, description: 'No autorizado' })
-  update(@Param('id') id: string, @Body() dto: UpdateActivityDto) {
-    return this.activitiesService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateActivityDto,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.activitiesService.update(id, dto, userId);
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('activity:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar actividad' })
   @ApiParam({ name: 'id', description: 'ID de la actividad' })
@@ -119,18 +134,22 @@ export class ActivitiesController {
   }
 
   @Post(':id/assign')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('activity:assign')
   @ApiOperation({ summary: 'Asignar usuarios a la actividad' })
   @ApiParam({ name: 'id', description: 'ID de la actividad' })
   @ApiResponse({ status: 200, description: 'Usuarios asignados exitosamente' })
   @ApiResponse({ status: 404, description: 'Actividad no encontrada' })
   @ApiResponse({ status: 403, description: 'No autorizado' })
-  assignUsers(@Param('id') id: string, @Body() dto: AssignUsersDto) {
-    return this.activitiesService.assignUsers(id, dto);
+  assignUsers(
+    @Param('id') id: string,
+    @Body() dto: AssignUsersDto,
+    @CurrentUser('id') actorId: string,
+  ) {
+    return this.activitiesService.assignUsers(id, dto, actorId);
   }
 
   @Delete(':id/unassign/:userId')
-  @Roles(Role.ADMIN)
+  @RequirePermissions('activity:assign')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Desasignar usuario de la actividad' })
   @ApiParam({ name: 'id', description: 'ID de la actividad' })
@@ -141,7 +160,27 @@ export class ActivitiesController {
   unassignUser(
     @Param('id') activityId: string,
     @Param('userId') userId: string,
+    @CurrentUser('id') actorId: string,
   ) {
-    return this.activitiesService.unassignUser(activityId, userId);
+    return this.activitiesService.unassignUser(activityId, userId, actorId);
+  }
+
+  @Get(':id/events')
+  @RequireAnyPermission('activity:read:own', 'activity:read:any')
+  @ApiOperation({ summary: 'Timeline / trazabilidad de la actividad' })
+  @ApiParam({ name: 'id', description: 'ID de la actividad' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de eventos (más recientes primero)' })
+  @ApiResponse({ status: 403, description: 'Sin acceso a esta actividad' })
+  listEvents(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('all') all?: string,
+  ) {
+    return this.activitiesService.listEvents(id, user, { page, limit, all });
   }
 }
