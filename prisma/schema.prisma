@@ -37,10 +37,13 @@ enum StageChangeStatus {
   PENDIENTE // Empleado solicitó cambio, esperando aprobación
   APROBADO // Admin aprobó el cambio
   RECHAZADO // Admin rechazó el cambio
+  CANCELADO // El solicitante (o un manager) canceló la solicitud antes de revisarla
 }
 
 enum NotificationType {
   ACTIVIDAD_ASIGNADA
+  ACTIVIDAD_DESASIGNADA
+  CAMBIO_ETAPA
   SOLICITUD_CAMBIO_ETAPA
   CAMBIO_ETAPA_APROBADO
   CAMBIO_ETAPA_RECHAZADO
@@ -69,10 +72,14 @@ enum ActivityEventType {
   STAGE_CHANGE_REQUESTED
   STAGE_CHANGE_APPROVED
   STAGE_CHANGE_REJECTED
+  STAGE_CHANGE_CANCELLED
   ASSIGNED
   UNASSIGNED
   COMMENT_ADDED
+  COMMENT_EDITED
+  COMMENT_DELETED
   FILE_UPLOADED
+  FILE_DELETED
 }
 
 // ============================================

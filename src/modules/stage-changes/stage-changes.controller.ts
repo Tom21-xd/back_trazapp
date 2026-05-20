@@ -135,6 +135,20 @@ export class StageChangesController {
     return this.stageChangesService.reviewRequest(id, dto, userId);
   }
 
+  @Patch(':id/cancel')
+  @RequireAnyPermission('stagechange:create', 'stagechange:manage:any')
+  @ApiOperation({ summary: 'Cancelar una solicitud pendiente (propia o cualquiera con manage:any)' })
+  @ApiParam({ name: 'id', description: 'ID de la solicitud' })
+  @ApiResponse({ status: 200, description: 'Solicitud cancelada' })
+  @ApiResponse({ status: 400, description: 'La solicitud ya no está pendiente' })
+  @ApiResponse({ status: 403, description: 'No puedes cancelar esta solicitud' })
+  cancel(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.stageChangesService.cancelRequest(id, user);
+  }
+
   @Post(':id/comments')
   @RequirePermissions('stagechange:comment')
   @ApiOperation({ summary: 'Agregar comentario a la solicitud' })

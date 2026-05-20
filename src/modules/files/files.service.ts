@@ -264,10 +264,37 @@ export class FilesService {
       );
     }
 
+    // Resolvemos el activityId raíz ANTES de borrar para no perder la FK
+    let activityId: string | null = null;
+    try {
+      activityId = await this.resolveActivityId({
+        activityId: file.activityId ?? undefined,
+        commentId: file.commentId ?? undefined,
+        stageChangeRequestId: file.stageChangeRequestId ?? undefined,
+        stageChangeCommentId: file.stageChangeCommentId ?? undefined,
+      });
+    } catch {
+      activityId = null;
+    }
+
     await this.prisma.file.delete({ where: { id } });
     await fs
       .unlink(join(this.uploadDir, file.storedName))
       .catch(() => undefined);
+
+    if (activityId) {
+      await this.events.record({
+        activityId,
+        type: 'FILE_DELETED',
+        actorId: user.id,
+        note: file.originalName,
+        metadata: {
+          mimeType: file.mimeType,
+          size: file.size,
+          uploaderId: file.uploadedById,
+        },
+      });
+    }
 
     return { message: 'Archivo eliminado exitosamente' };
   }

@@ -18,6 +18,7 @@ const stranger = { id: 'user2', permissions: [] as string[] };
 describe('CommentsService', () => {
   let service: CommentsService;
   let prisma: PrismaService;
+  const mockEvents = { record: jest.fn(), list: jest.fn() };
 
   const mockPrismaService = {
     comment: {
@@ -58,10 +59,7 @@ describe('CommentsService', () => {
           provide: NotificationsService,
           useValue: { newComment: jest.fn() },
         },
-        {
-          provide: ActivityEventsService,
-          useValue: { record: jest.fn(), list: jest.fn() },
-        },
+        { provide: ActivityEventsService, useValue: mockEvents },
       ],
     }).compile();
 
@@ -203,6 +201,65 @@ describe('CommentsService', () => {
 
       await expect(service.remove('1', stranger)).rejects.toThrow(
         ForbiddenException,
+      );
+    });
+  });
+
+  describe('timeline events', () => {
+    it('registra COMMENT_ADDED en create', async () => {
+      mockPrismaService.activity.findUnique.mockResolvedValue({
+        id: 'activity1',
+        title: 'A',
+      });
+      mockPrismaService.comment.create.mockResolvedValue({
+        ...mockComment,
+        id: 'c-new',
+        content: 'hola',
+      });
+
+      await service.create({ content: 'hola', activityId: 'activity1' }, 'user1');
+
+      expect(mockEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activityId: 'activity1',
+          type: 'COMMENT_ADDED',
+          actorId: 'user1',
+          commentId: 'c-new',
+        }),
+      );
+    });
+
+    it('registra COMMENT_EDITED en update', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(mockComment);
+      mockPrismaService.comment.update.mockResolvedValue({
+        ...mockComment,
+        content: 'editado',
+      });
+
+      await service.update('1', { content: 'editado' }, owner);
+
+      expect(mockEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'COMMENT_EDITED',
+          activityId: mockComment.activityId,
+          actorId: owner.id,
+          commentId: '1',
+        }),
+      );
+    });
+
+    it('registra COMMENT_DELETED en remove', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(mockComment);
+      mockPrismaService.comment.delete.mockResolvedValue(mockComment);
+
+      await service.remove('1', owner);
+
+      expect(mockEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'COMMENT_DELETED',
+          activityId: mockComment.activityId,
+          actorId: owner.id,
+        }),
       );
     });
   });

@@ -124,6 +124,37 @@ export class NotificationsService {
     );
   }
 
+  async activityUnassigned(
+    activityId: string,
+    activityTitle: string,
+    userIds: string[],
+    excludeUserId?: string,
+  ) {
+    await this.emit(
+      userIds.filter((id) => id !== excludeUserId),
+      NotificationType.ACTIVIDAD_DESASIGNADA,
+      'Te retiraron de una actividad',
+      `Ya no estás asignado a "${activityTitle}"`,
+      { activityId },
+    );
+  }
+
+  async stageChanged(
+    activityId: string,
+    activityTitle: string,
+    newStageName: string,
+    assigneeIds: string[],
+    actorId?: string,
+  ) {
+    await this.emit(
+      assigneeIds.filter((id) => id !== actorId),
+      NotificationType.CAMBIO_ETAPA,
+      'Cambio de etapa',
+      `"${activityTitle}" ahora está en ${newStageName}`,
+      { activityId },
+    );
+  }
+
   async stageChangeRequested(
     activityId: string,
     activityTitle: string,

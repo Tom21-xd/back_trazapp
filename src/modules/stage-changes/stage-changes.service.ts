@@ -259,6 +259,41 @@ export class StageChangesService {
     return updated;
   }
 
+  async cancelRequest(id: string, user: AuthUser) {
+    const request = await this.findOne(id);
+
+    if (request.status !== StageChangeStatus.PENDIENTE) {
+      throw new BadRequestException(
+        'Solo se puede cancelar una solicitud pendiente',
+      );
+    }
+
+    const isOwner = request.requestedById === user.id;
+    const isManager = hasAnyPermission(user.permissions, [
+      'stagechange:manage:any',
+    ]);
+    if (!isOwner && !isManager) {
+      throw new ForbiddenException('No puedes cancelar esta solicitud');
+    }
+
+    const updated = await this.prisma.stageChangeRequest.update({
+      where: { id },
+      data: { status: StageChangeStatus.CANCELADO },
+      include: this.getIncludeOptions(),
+    });
+
+    await this.events.record({
+      activityId: request.activityId,
+      type: 'STAGE_CHANGE_CANCELLED',
+      actorId: user.id,
+      fromStageId: request.fromStageId,
+      toStageId: request.toStageId,
+      stageChangeRequestId: request.id,
+    });
+
+    return updated;
+  }
+
   async addComment(requestId: string, dto: AddCommentDto, user: AuthUser) {
     const request = await this.findOne(requestId);
 

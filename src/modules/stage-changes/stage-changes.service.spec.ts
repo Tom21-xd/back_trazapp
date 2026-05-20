@@ -12,6 +12,7 @@ const adminUser = { id: 'user1', permissions: ['stagechange:manage:any'] };
 describe('StageChangesService', () => {
   let service: StageChangesService;
   let prisma: PrismaService;
+  const mockEvents = { record: jest.fn(), list: jest.fn() };
 
   const mockPrismaService = {
     stageChangeRequest: {
@@ -72,10 +73,7 @@ describe('StageChangesService', () => {
             stageChangeReviewed: jest.fn(),
           },
         },
-        {
-          provide: ActivityEventsService,
-          useValue: { record: jest.fn(), list: jest.fn() },
-        },
+        { provide: ActivityEventsService, useValue: mockEvents },
       ],
     }).compile();
 
@@ -281,6 +279,91 @@ describe('StageChangesService', () => {
       await expect(
         service.addComment('999', commentDto, adminUser),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('timeline events', () => {
+    it('registra STAGE_CHANGE_REQUESTED en createRequest', async () => {
+      mockPrismaService.activity.findUnique.mockResolvedValue({
+        id: 'activity1',
+        title: 'A',
+        currentStageId: 'stage1',
+      });
+      mockPrismaService.stage.findUnique.mockResolvedValue({ id: 'stage2' });
+      mockPrismaService.stageChangeRequest.create.mockResolvedValue({
+        ...mockStageChangeRequest,
+        id: 'req-new',
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue({ name: 'Pepe' });
+
+      await service.createRequest(
+        {
+          activityId: 'activity1',
+          toStageId: 'stage2',
+          description: 'porfis',
+        },
+        adminUser,
+      );
+
+      expect(mockEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'STAGE_CHANGE_REQUESTED',
+          activityId: 'activity1',
+          actorId: adminUser.id,
+          fromStageId: 'stage1',
+          toStageId: 'stage2',
+          stageChangeRequestId: 'req-new',
+        }),
+      );
+    });
+
+    it('registra STAGE_CHANGE_APPROVED en review approve', async () => {
+      mockPrismaService.stageChangeRequest.findUnique.mockResolvedValue(
+        mockStageChangeRequest,
+      );
+      mockPrismaService.activityStageHistory.findFirst.mockResolvedValue(null);
+      mockPrismaService.activity.update.mockResolvedValue({});
+      mockPrismaService.stageChangeRequest.update.mockResolvedValue({
+        ...mockStageChangeRequest,
+        status: StageChangeStatus.APROBADO,
+      });
+
+      await service.reviewRequest(
+        '1',
+        { status: StageChangeStatus.APROBADO, reviewComment: 'ok' },
+        'reviewer1',
+      );
+
+      expect(mockEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'STAGE_CHANGE_APPROVED',
+          actorId: 'reviewer1',
+          stageChangeRequestId: '1',
+        }),
+      );
+    });
+
+    it('registra STAGE_CHANGE_REJECTED en review reject', async () => {
+      mockPrismaService.stageChangeRequest.findUnique.mockResolvedValue(
+        mockStageChangeRequest,
+      );
+      mockPrismaService.stageChangeRequest.update.mockResolvedValue({
+        ...mockStageChangeRequest,
+        status: StageChangeStatus.RECHAZADO,
+      });
+
+      await service.reviewRequest(
+        '1',
+        { status: StageChangeStatus.RECHAZADO, reviewComment: 'no' },
+        'reviewer1',
+      );
+
+      expect(mockEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'STAGE_CHANGE_REJECTED',
+          actorId: 'reviewer1',
+        }),
+      );
     });
   });
 

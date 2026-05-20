@@ -15,6 +15,7 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityEventsService } from '../activity-events/activity-events.service';
 import { hasAnyPermission } from '../../common/permissions';
+import { Prisma } from '@prisma/client';
 
 interface AuthUser {
   id: string;
@@ -337,6 +338,26 @@ export class ActivitiesService {
         fromStageId: existing.currentStageId,
         toStageId: currentStageId,
       });
+      // Notificar a los asignados (los que quedaron tras el diff) del cambio
+      const finalAssignees =
+        assignedUserIds !== undefined ? assignedUserIds : previousAssignees;
+      if (finalAssignees.length > 0) {
+        try {
+          const newStage = await this.prisma.stage.findUnique({
+            where: { id: currentStageId! },
+            select: { name: true },
+          });
+          await this.notifications.stageChanged(
+            id,
+            existing.title,
+            newStage?.name ?? 'la nueva etapa',
+            finalAssignees,
+            actorId,
+          );
+        } catch {
+          // best-effort
+        }
+      }
     }
     if (assignedUserIds !== undefined) {
       const added = assignedUserIds.filter((u) => !previousAssignees.includes(u));
@@ -357,6 +378,70 @@ export class ActivitiesService {
           targetUserId,
         });
       }
+      if (added.length > 0) {
+        await this.notifications.activityAssigned(
+          id,
+          existing.title,
+          added,
+          actorId,
+        );
+      }
+      if (removed.length > 0) {
+        await this.notifications.activityUnassigned(
+          id,
+          existing.title,
+          removed,
+          actorId,
+        );
+      }
+    }
+
+    // Diff de campos editables (título, descripción, prioridad, fecha límite)
+    type FieldDiff = { from: string | null; to: string | null };
+    const fieldChanges: Record<string, FieldDiff> = {};
+    if (activityData.title !== undefined && activityData.title !== existing.title) {
+      fieldChanges.title = {
+        from: existing.title ?? null,
+        to: activityData.title ?? null,
+      };
+    }
+    if (
+      activityData.description !== undefined &&
+      activityData.description !== existing.description
+    ) {
+      fieldChanges.description = {
+        from: existing.description ?? null,
+        to: activityData.description ?? null,
+      };
+    }
+    if (
+      activityData.priority !== undefined &&
+      activityData.priority !== existing.priority
+    ) {
+      fieldChanges.priority = {
+        from: existing.priority ?? null,
+        to: activityData.priority ?? null,
+      };
+    }
+    if (activityData.dueDate !== undefined) {
+      const before = existing.dueDate
+        ? new Date(existing.dueDate).toISOString()
+        : null;
+      const after = activityData.dueDate
+        ? new Date(activityData.dueDate as string | Date).toISOString()
+        : null;
+      if (before !== after) {
+        fieldChanges.dueDate = { from: before, to: after };
+      }
+    }
+    if (Object.keys(fieldChanges).length > 0) {
+      await this.events.record({
+        activityId: id,
+        type: 'UPDATED',
+        actorId,
+        metadata: { fields: fieldChanges } as Prisma.InputJsonValue,
+        note: Object.keys(fieldChanges).join(', '),
+      });
     }
 
     return this.findOne(id);
@@ -434,11 +519,19 @@ export class ActivitiesService {
         actorId,
       );
     }
+    if (removed.length > 0) {
+      await this.notifications.activityUnassigned(
+        result.id,
+        result.title,
+        removed,
+        actorId,
+      );
+    }
     return result;
   }
 
   async unassignUser(activityId: string, userId: string, actorId: string) {
-    await this.findOne(activityId);
+    const existing = await this.findOne(activityId);
 
     const { count } = await this.prisma.activityAssignment.deleteMany({
       where: {
@@ -454,6 +547,12 @@ export class ActivitiesService {
         actorId,
         targetUserId: userId,
       });
+      await this.notifications.activityUnassigned(
+        activityId,
+        existing.title,
+        [userId],
+        actorId,
+      );
     }
 
     return { message: 'Usuario desasignado exitosamente' };

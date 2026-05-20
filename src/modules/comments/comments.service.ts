@@ -162,6 +162,14 @@ export class CommentsService {
       },
     });
 
+    await this.events.record({
+      activityId: comment.activityId,
+      type: 'COMMENT_EDITED',
+      actorId: user.id,
+      commentId: id,
+      note: dto.content.slice(0, 200),
+    });
+
     return updated;
   }
 
@@ -183,6 +191,15 @@ export class CommentsService {
 
     await this.prisma.comment.delete({
       where: { id },
+    });
+
+    await this.events.record({
+      activityId: comment.activityId,
+      type: 'COMMENT_DELETED',
+      actorId: user.id,
+      // commentId queda en null para no romper la FK (el comentario ya no existe)
+      note: comment.content.slice(0, 200),
+      metadata: { authorId: comment.userId },
     });
 
     return { message: 'Comentario eliminado exitosamente' };

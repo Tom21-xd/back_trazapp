@@ -8,6 +8,7 @@ import { Priority } from '@prisma/client';
 
 describe('ActivitiesService', () => {
   let service: ActivitiesService;
+  const mockEvents = { record: jest.fn(), list: jest.fn() };
 
   const mockPrisma = {
     activity: {
@@ -62,15 +63,14 @@ describe('ActivitiesService', () => {
           provide: NotificationsService,
           useValue: {
             activityAssigned: jest.fn(),
+            activityUnassigned: jest.fn(),
+            stageChanged: jest.fn(),
             stageChangeRequested: jest.fn(),
             stageChangeReviewed: jest.fn(),
             newComment: jest.fn(),
           },
         },
-        {
-          provide: ActivityEventsService,
-          useValue: { record: jest.fn(), list: jest.fn() },
-        },
+        { provide: ActivityEventsService, useValue: mockEvents },
       ],
     }).compile();
 
@@ -207,6 +207,132 @@ describe('ActivitiesService', () => {
       const result = await service.remove('1');
 
       expect(result.message).toBe('Actividad eliminada exitosamente');
+    });
+  });
+
+  describe('timeline events', () => {
+    it('registra CREATED + ASSIGNED en create', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ id: 'project1' });
+      mockPrisma.stage.findUnique.mockResolvedValue({ id: 'stage1' });
+      mockPrisma.user.count.mockResolvedValue(2);
+      mockPrisma.activity.create.mockResolvedValue({
+        ...mockActivity,
+        id: 'a-new',
+      });
+
+      await service.create(
+        {
+          title: 'New',
+          projectId: 'project1',
+          currentStageId: 'stage1',
+          assignedUserIds: ['u1', 'u2'],
+        },
+        'admin1',
+      );
+
+      const types = mockEvents.record.mock.calls.map((c) => c[0].type);
+      expect(types).toContain('CREATED');
+      expect(
+        mockEvents.record.mock.calls.filter((c) => c[0].type === 'ASSIGNED'),
+      ).toHaveLength(2);
+    });
+
+    it('registra STAGE_CHANGED en update cuando cambia la etapa', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        currentStageId: 'stage1',
+        assignments: [],
+      });
+      mockPrisma.stage.findUnique.mockResolvedValue({ id: 'stage2' });
+      mockPrisma.activityStageHistory.findFirst.mockResolvedValue(null);
+      mockPrisma.activity.update.mockResolvedValue({});
+
+      await service.update('1', { currentStageId: 'stage2' }, 'admin1');
+
+      expect(mockEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'STAGE_CHANGED',
+          fromStageId: 'stage1',
+          toStageId: 'stage2',
+          actorId: 'admin1',
+        }),
+      );
+    });
+
+    it('registra UPDATED con diff cuando cambia título', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        assignments: [],
+      });
+      mockPrisma.activity.update.mockResolvedValue({});
+
+      await service.update('1', { title: 'Nuevo título' }, 'admin1');
+
+      const updatedCall = mockEvents.record.mock.calls.find(
+        (c) => c[0].type === 'UPDATED',
+      );
+      expect(updatedCall).toBeDefined();
+      expect(updatedCall![0].metadata).toMatchObject({
+        fields: {
+          title: { from: mockActivity.title, to: 'Nuevo título' },
+        },
+      });
+    });
+
+    it('registra ASSIGNED/UNASSIGNED en assignUsers con diff', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        assignments: [{ userId: 'u1' }, { userId: 'u2' }],
+      });
+      mockPrisma.user.count.mockResolvedValue(2);
+      mockPrisma.activityAssignment.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.activityAssignment.createMany.mockResolvedValue({ count: 0 });
+
+      await service.assignUsers('1', { userIds: ['u2', 'u3'] }, 'admin1');
+
+      const assigned = mockEvents.record.mock.calls.filter(
+        (c) => c[0].type === 'ASSIGNED',
+      );
+      const unassigned = mockEvents.record.mock.calls.filter(
+        (c) => c[0].type === 'UNASSIGNED',
+      );
+      expect(assigned).toHaveLength(1);
+      expect(assigned[0][0].targetUserId).toBe('u3');
+      expect(unassigned).toHaveLength(1);
+      expect(unassigned[0][0].targetUserId).toBe('u1');
+    });
+
+    it('registra UNASSIGNED en unassignUser cuando había asignación', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue(mockActivity);
+      mockPrisma.activityAssignment.deleteMany.mockResolvedValue({ count: 1 });
+
+      await service.unassignUser('1', 'u1', 'admin1');
+
+      expect(mockEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'UNASSIGNED',
+          targetUserId: 'u1',
+          actorId: 'admin1',
+        }),
+      );
+    });
+  });
+
+  describe('listEvents', () => {
+    it('delega en ActivityEventsService.list tras pasar el scoping', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        assignments: [],
+      });
+      mockEvents.list.mockResolvedValue({ data: [], meta: { total: 0 } });
+
+      await service.listEvents(
+        '1',
+        { id: 'admin1', permissions: ['activity:read:any'] },
+        {},
+      );
+
+      expect(mockEvents.list).toHaveBeenCalledWith('1', {});
     });
   });
 
