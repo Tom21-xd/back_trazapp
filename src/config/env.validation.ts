@@ -56,6 +56,40 @@ class EnvironmentVariables {
   @IsOptional()
   @IsNumber()
   THROTTLE_LIMIT?: number;
+
+  // Web Push (VAPID) — opcionales: si no están, push queda desactivado
+  @IsOptional()
+  @IsString()
+  VAPID_PUBLIC_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  VAPID_PRIVATE_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  VAPID_SUBJECT?: string;
+
+  // SMTP / Email — opcionales: si no están, email queda desactivado
+  @IsOptional()
+  @IsString()
+  SMTP_HOST?: string;
+
+  @IsOptional()
+  @IsNumber()
+  SMTP_PORT?: number;
+
+  @IsOptional()
+  @IsString()
+  SMTP_USER?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_PASS?: string;
+
+  @IsOptional()
+  @IsString()
+  EMAIL_FROM?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

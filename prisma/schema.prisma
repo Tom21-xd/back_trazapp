@@ -118,8 +118,27 @@ model User {
   activityEventsAsActor  ActivityEvent[] @relation("ActivityEventActor")
   activityEventsAsTarget ActivityEvent[] @relation("ActivityEventTarget")
 
+  // Suscripciones de notificaciones push del dispositivo
+  pushSubscriptions PushSubscription[]
+
   @@index([appRoleId])
   @@map("users")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  endpoint  String   @unique
+  p256dh    String // Llave pública del navegador para cifrar el payload
+  auth      String // Secreto compartido para autenticación
+  userAgent String? // Identificación del dispositivo (debugging)
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 // ============================================

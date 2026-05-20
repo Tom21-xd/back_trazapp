@@ -396,8 +396,10 @@ export class ActivitiesService {
       }
     }
 
-    // Diff de campos editables (título, descripción, prioridad, fecha límite)
-    type FieldDiff = { from: string | null; to: string | null };
+    // Diff de campos editables (título, descripción, prioridad, fecha límite, tags, deps)
+    type FieldDiff =
+      | { from: string | null; to: string | null }
+      | { added: string[]; removed: string[] };
     const fieldChanges: Record<string, FieldDiff> = {};
     if (activityData.title !== undefined && activityData.title !== existing.title) {
       fieldChanges.title = {
@@ -432,6 +434,30 @@ export class ActivitiesService {
         : null;
       if (before !== after) {
         fieldChanges.dueDate = { from: before, to: after };
+      }
+    }
+    if (tagIds !== undefined) {
+      const previousTagIds = (existing.tags ?? []).map(
+        (t: { tagId: string }) => t.tagId,
+      );
+      const added = tagIds.filter((t) => !previousTagIds.includes(t));
+      const removed = previousTagIds.filter((t) => !tagIds.includes(t));
+      if (added.length > 0 || removed.length > 0) {
+        fieldChanges.tags = { added, removed };
+      }
+    }
+    if (dependsOnActivityIds !== undefined) {
+      const previousDepIds = (existing.dependsOn ?? []).map(
+        (d: { requiredActivityId: string }) => d.requiredActivityId,
+      );
+      const added = dependsOnActivityIds.filter(
+        (d) => !previousDepIds.includes(d),
+      );
+      const removed = previousDepIds.filter(
+        (d) => !dependsOnActivityIds.includes(d),
+      );
+      if (added.length > 0 || removed.length > 0) {
+        fieldChanges.dependsOn = { added, removed };
       }
     }
     if (Object.keys(fieldChanges).length > 0) {

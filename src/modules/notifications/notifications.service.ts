@@ -1,6 +1,9 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
+import { EmailService } from '../email/email.service';
 import {
   buildPaginated,
   resolvePagination,
@@ -11,7 +14,12 @@ import {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private push: PushService,
+    private email: EmailService,
+    private config: ConfigService,
+  ) {}
 
   // ---------- Lectura (usuario actual) ----------
 
@@ -87,6 +95,29 @@ export class NotificationsService {
         `No se pudo emitir notificación (${type}): ${(err as Error).message}`,
       );
     }
+
+    // Push + Email en paralelo (best-effort, ninguno bloquea al otro)
+    const activityId =
+      (metadata as { activityId?: string } | undefined)?.activityId;
+    const frontendUrl = this.config.get<string>('frontendUrl') ?? '';
+    const url = activityId
+      ? `${frontendUrl}/activities/${activityId}`
+      : `${frontendUrl}/dashboard`;
+
+    void this.push
+      .sendToUsers(targets, { title, body: message, url })
+      .catch((err) =>
+        this.logger.warn(
+          `No se pudo enviar push (${type}): ${(err as Error).message}`,
+        ),
+      );
+    void this.email
+      .sendToUsers(targets, { subject: title, message, url })
+      .catch((err) =>
+        this.logger.warn(
+          `No se pudo enviar email (${type}): ${(err as Error).message}`,
+        ),
+      );
   }
 
   /** Usuarios que pueden revisar solicitudes (permiso stagechange:review). */

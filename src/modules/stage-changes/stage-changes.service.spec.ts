@@ -282,6 +282,82 @@ describe('StageChangesService', () => {
     });
   });
 
+  describe('cancelRequest', () => {
+    const ownerUser = {
+      id: 'user1',
+      permissions: ['stagechange:create'] as string[],
+    };
+    const strangerUser = {
+      id: 'user99',
+      permissions: ['stagechange:create'] as string[],
+    };
+    const managerUser = {
+      id: 'admin1',
+      permissions: ['stagechange:manage:any'] as string[],
+    };
+
+    it('marca la solicitud como CANCELADO si es del usuario', async () => {
+      mockPrismaService.stageChangeRequest.findUnique.mockResolvedValue(
+        mockStageChangeRequest,
+      );
+      mockPrismaService.stageChangeRequest.update.mockResolvedValue({
+        ...mockStageChangeRequest,
+        status: StageChangeStatus.CANCELADO,
+      });
+
+      const result = await service.cancelRequest('1', ownerUser);
+
+      expect(result.status).toBe(StageChangeStatus.CANCELADO);
+      expect(mockPrismaService.stageChangeRequest.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: '1' },
+          data: { status: StageChangeStatus.CANCELADO },
+        }),
+      );
+      expect(mockEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'STAGE_CHANGE_CANCELLED',
+          actorId: ownerUser.id,
+          stageChangeRequestId: '1',
+        }),
+      );
+    });
+
+    it('permite a un manager cancelar solicitudes ajenas', async () => {
+      mockPrismaService.stageChangeRequest.findUnique.mockResolvedValue(
+        mockStageChangeRequest,
+      );
+      mockPrismaService.stageChangeRequest.update.mockResolvedValue({
+        ...mockStageChangeRequest,
+        status: StageChangeStatus.CANCELADO,
+      });
+
+      const result = await service.cancelRequest('1', managerUser);
+      expect(result.status).toBe(StageChangeStatus.CANCELADO);
+    });
+
+    it('rechaza si la solicitud ya no está pendiente', async () => {
+      mockPrismaService.stageChangeRequest.findUnique.mockResolvedValue({
+        ...mockStageChangeRequest,
+        status: StageChangeStatus.APROBADO,
+      });
+
+      await expect(
+        service.cancelRequest('1', ownerUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rechaza si no es el solicitante ni manager', async () => {
+      mockPrismaService.stageChangeRequest.findUnique.mockResolvedValue(
+        mockStageChangeRequest,
+      );
+
+      await expect(
+        service.cancelRequest('1', strangerUser),
+      ).rejects.toThrow('No puedes cancelar');
+    });
+  });
+
   describe('timeline events', () => {
     it('registra STAGE_CHANGE_REQUESTED en createRequest', async () => {
       mockPrismaService.activity.findUnique.mockResolvedValue({

@@ -20,6 +20,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AuditModule } from './modules/audit/audit.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ActivityEventsModule } from './modules/activity-events/activity-events.module';
+import { PushModule } from './modules/push/push.module';
+import { EmailModule } from './modules/email/email.module';
 import { JwtAuthGuard, PermissionsGuard } from './common/guards';
 import { HttpExceptionFilter } from './common/filters';
 import configuration from './config/configuration';
@@ -56,6 +58,8 @@ import { validate } from './config/env.validation';
     AuditModule,
     RolesModule,
     ActivityEventsModule,
+    PushModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [
