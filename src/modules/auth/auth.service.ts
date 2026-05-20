@@ -1,21 +1,34 @@
 import {
+  BadRequestException,
   Injectable,
+  Logger,
   UnauthorizedException,
   ConflictException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { LoginDto, RegisterDto, RefreshTokenDto } from './dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 
+const RESET_TOKEN_TTL_MIN = 60; // 1 hora
+
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private config: ConfigService,
+    private email: EmailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -140,6 +153,106 @@ export class AuthService {
       }
       throw new UnauthorizedException('Refresh token inválido');
     }
+  }
+
+  /**
+   * Inicia el flujo de recuperación: si el email existe, genera un token de un solo uso
+   * y se lo manda por correo. NUNCA revela si el email existe o no (anti-enumeración).
+   */
+  async requestPasswordReset(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    // Respuesta uniforme aunque no exista el usuario
+    const ok = {
+      message:
+        'Si la dirección está registrada, te enviamos un correo con las instrucciones',
+    };
+    if (!user || !user.isActive) return ok;
+
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MIN * 60 * 1000);
+
+    try {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetTokenHash: tokenHash,
+          passwordResetExpiresAt: expiresAt,
+        },
+      });
+    } catch (err) {
+      this.logger.error(
+        `No se pudo guardar token de reset: ${(err as Error).message}`,
+      );
+      return ok;
+    }
+
+    const frontendUrl = this.config.get<string>('frontendUrl') ?? '';
+    const url = `${frontendUrl}/reset-password?token=${rawToken}`;
+
+    // Email best-effort; si el SMTP no está configurado, log y seguimos
+    await this.email.sendTo(
+      user.email,
+      {
+        subject: 'Recupera tu contraseña · TrazApp',
+        message:
+          'Recibimos una solicitud para restablecer tu contraseña. ' +
+          'El enlace es válido durante 1 hora. Si no fuiste tú, ignora este mensaje.',
+        url,
+      },
+      user.name,
+    );
+
+    return ok;
+  }
+
+  /**
+   * Completa el reset: valida el token (hash + expiración), actualiza la contraseña
+   * y revoca todas las sesiones activas del usuario.
+   */
+  async resetPassword(token: string, newPassword: string) {
+    if (!token || typeof token !== 'string') {
+      throw new BadRequestException('Token inválido');
+    }
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException(
+        'La contraseña debe tener al menos 6 caracteres',
+      );
+    }
+
+    const tokenHash = hashToken(token);
+    const user = await this.prisma.user.findFirst({
+      where: {
+        passwordResetTokenHash: tokenHash,
+        passwordResetExpiresAt: { gt: new Date() },
+        isActive: true,
+      },
+    });
+    if (!user) {
+      throw new BadRequestException(
+        'El enlace no es válido o ya expiró. Solicita uno nuevo.',
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null,
+      },
+    });
+
+    // Revoca todas las sesiones activas tras un reset
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    return {
+      message: 'Contraseña actualizada. Inicia sesión con la nueva.',
+    };
   }
 
   async logout(userId: string) {

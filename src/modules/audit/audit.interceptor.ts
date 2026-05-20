@@ -21,7 +21,32 @@ const ENTITY_MAP: Record<string, string> = {
   'project-types': 'ProjectType',
   files: 'File',
   auth: 'Auth',
+  roles: 'AppRole',
+  push: 'PushSubscription',
 };
+
+// Campos sensibles que JAMÁS deben terminar persistidos en el audit log
+const SENSITIVE_FIELDS = new Set([
+  'password',
+  'currentPassword',
+  'newPassword',
+  'token',
+  'refreshToken',
+  'accessToken',
+  'auth',
+  'p256dh',
+]);
+
+function sanitize(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) return value.map(sanitize);
+  if (typeof value !== 'object') return value;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[k] = SENSITIVE_FIELDS.has(k) ? '[REDACTED]' : sanitize(v);
+  }
+  return out;
+}
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
@@ -65,11 +90,17 @@ export class AuditInterceptor implements NestInterceptor {
         const entityId =
           req.params?.id || (resp && resp.id) || segments[1] || '-';
 
+        // Sólo guardamos newData cuando la operación lo merece y no es ruidosa
+        const captureBody =
+          method === 'POST' || method === 'PATCH' || method === 'PUT';
+        const newData = captureBody ? sanitize(req.body) : undefined;
+
         void this.audit.record({
           userId: user.id,
           action,
           entityType,
           entityId: String(entityId),
+          newData,
           ipAddress:
             (req.headers?.['x-forwarded-for'] as string) ||
             req.ip ||

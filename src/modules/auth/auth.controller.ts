@@ -2,7 +2,13 @@ import { Body, Controller, Post, HttpCode, HttpStatus, Get } from '@nestjs/commo
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, RefreshTokenDto } from './dto';
+import {
+  LoginDto,
+  RegisterDto,
+  RefreshTokenDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './dto';
 import { Public, CurrentUser } from '../../common/decorators';
 
 @ApiTags('auth')
@@ -41,6 +47,32 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Refresh token inválido' })
   refreshToken(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshToken(dto);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Iniciar flujo de recuperación de contraseña' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Si el email existe, se envía un correo. La respuesta es uniforme para evitar enumeración.',
+  })
+  @ApiResponse({ status: 429, description: 'Demasiados intentos' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.requestPasswordReset(dto.email);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reestablecer contraseña con token recibido por email' })
+  @ApiResponse({ status: 200, description: 'Contraseña actualizada' })
+  @ApiResponse({ status: 400, description: 'Token inválido o expirado' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.password);
   }
 
   @Post('logout')

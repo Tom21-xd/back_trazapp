@@ -121,6 +121,10 @@ model User {
   // Suscripciones de notificaciones push del dispositivo
   pushSubscriptions PushSubscription[]
 
+  // Reset de contraseña: hash del token + expiración (~ 1 hora)
+  passwordResetTokenHash String?
+  passwordResetExpiresAt DateTime?
+
   @@index([appRoleId])
   @@map("users")
 }
