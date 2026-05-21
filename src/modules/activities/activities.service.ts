@@ -227,6 +227,12 @@ export class ActivitiesService {
   async update(id: string, dto: UpdateActivityDto, actorId: string) {
     const existing = await this.findOne(id);
 
+    if (!existing.isActive) {
+      throw new BadRequestException(
+        'La actividad está archivada y no admite cambios',
+      );
+    }
+
     const {
       assignedUserIds,
       tagIds,
@@ -473,29 +479,55 @@ export class ActivitiesService {
     return this.findOne(id);
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  /**
+   * Soft-delete: marca isActive=false en lugar de borrar físicamente.
+   * Esto preserva la timeline, comentarios, archivos y solicitudes para
+   * auditoría institucional. La actividad deja de aparecer en listados pero
+   * sigue accesible por su ID si el usuario tiene permiso.
+   */
+  async remove(id: string, actorId: string) {
+    const existing = await this.findOne(id);
 
-    // Verificar que no tenga actividades que dependan de ella
+    if (!existing.isActive) {
+      throw new BadRequestException('La actividad ya está archivada');
+    }
+
+    // Verificar que no tenga actividades activas que dependan de ella
     const dependentActivities = await this.prisma.activityDependency.count({
-      where: { requiredActivityId: id },
+      where: {
+        requiredActivityId: id,
+        dependentActivity: { isActive: true },
+      },
     });
 
     if (dependentActivities > 0) {
       throw new BadRequestException(
-        'No se puede eliminar una actividad de la que dependen otras',
+        'No se puede archivar una actividad de la que dependen otras activas',
       );
     }
 
-    await this.prisma.activity.delete({
+    await this.prisma.activity.update({
       where: { id },
+      data: { isActive: false },
     });
 
-    return { message: 'Actividad eliminada exitosamente' };
+    await this.events.record({
+      activityId: id,
+      type: 'DELETED',
+      actorId,
+      note: existing.title,
+    });
+
+    return { message: 'Actividad archivada exitosamente' };
   }
 
   async assignUsers(id: string, dto: AssignUsersDto, actorId: string) {
     const existing = await this.findOne(id);
+    if (!existing.isActive) {
+      throw new BadRequestException(
+        'La actividad está archivada y no admite cambios',
+      );
+    }
     const previousAssignees = (existing.assignments ?? []).map(
       (a: { userId: string }) => a.userId,
     );
@@ -558,6 +590,11 @@ export class ActivitiesService {
 
   async unassignUser(activityId: string, userId: string, actorId: string) {
     const existing = await this.findOne(activityId);
+    if (!existing.isActive) {
+      throw new BadRequestException(
+        'La actividad está archivada y no admite cambios',
+      );
+    }
 
     const { count } = await this.prisma.activityAssignment.deleteMany({
       where: {

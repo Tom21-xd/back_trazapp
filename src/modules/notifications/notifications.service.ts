@@ -4,6 +4,7 @@ import { NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../push/push.service';
 import { EmailService } from '../email/email.service';
+import { NotificationsStreamService } from './notifications-stream.service';
 import {
   buildPaginated,
   resolvePagination,
@@ -18,6 +19,7 @@ export class NotificationsService {
     private prisma: PrismaService,
     private push: PushService,
     private email: EmailService,
+    private stream: NotificationsStreamService,
     private config: ConfigService,
   ) {}
 
@@ -93,6 +95,27 @@ export class NotificationsService {
     } catch (err) {
       this.logger.error(
         `No se pudo emitir notificación (${type}): ${(err as Error).message}`,
+      );
+    }
+
+    // SSE: empuja un evento "notification" a cada pestaña abierta del usuario
+    // para que el bell aparezca al instante sin esperar al próximo polling.
+    try {
+      this.stream.broadcast(targets, {
+        type: 'notification',
+        data: { type, title, message, metadata },
+      });
+      // Y refresca el contador de no-leídas en todas las pestañas
+      for (const userId of targets) {
+        const { count } = await this.unreadCount(userId);
+        this.stream.broadcast([userId], {
+          type: 'unreadCount',
+          data: { count },
+        });
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Broadcast SSE falló (${type}): ${(err as Error).message}`,
       );
     }
 

@@ -98,6 +98,7 @@ describe('StageChangesService', () => {
       const mockActivity = {
         id: 'activity1',
         currentStageId: 'stage1',
+        isActive: true,
       };
 
       mockPrismaService.activity.findUnique.mockResolvedValue(mockActivity);
@@ -126,6 +127,21 @@ describe('StageChangesService', () => {
       );
     });
 
+    it('rechaza crear solicitud sobre actividad archivada', async () => {
+      mockPrismaService.activity.findUnique.mockResolvedValue({
+        id: 'activity1',
+        title: 'A',
+        currentStageId: 'stage1',
+        isActive: false,
+      });
+      await expect(
+        service.createRequest(
+          { activityId: 'activity1', toStageId: 'stage2', description: 'x' },
+          adminUser,
+        ),
+      ).rejects.toThrow('archivada');
+    });
+
     it('should throw BadRequestException if same stage', async () => {
       const createDto = {
         description: 'Request',
@@ -136,6 +152,7 @@ describe('StageChangesService', () => {
       const mockActivity = {
         id: 'activity1',
         currentStageId: 'stage1',
+        isActive: true,
       };
 
       mockPrismaService.activity.findUnique.mockResolvedValue(mockActivity);
@@ -364,6 +381,7 @@ describe('StageChangesService', () => {
         id: 'activity1',
         title: 'A',
         currentStageId: 'stage1',
+        isActive: true,
       });
       mockPrismaService.stage.findUnique.mockResolvedValue({ id: 'stage2' });
       mockPrismaService.stageChangeRequest.create.mockResolvedValue({

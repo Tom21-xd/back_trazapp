@@ -38,6 +38,12 @@ export class CommentsService {
       throw new NotFoundException('Actividad no encontrada');
     }
 
+    if (!activity.isActive) {
+      throw new ForbiddenException(
+        'La actividad está archivada y no admite comentarios',
+      );
+    }
+
     const comment = await this.prisma.comment.create({
       data: {
         content: dto.content,

@@ -124,13 +124,14 @@ export class ActivitiesController {
   @Delete(':id')
   @RequirePermissions('activity:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Eliminar actividad' })
+  @ApiOperation({ summary: 'Archivar actividad (soft-delete con trazabilidad)' })
   @ApiParam({ name: 'id', description: 'ID de la actividad' })
-  @ApiResponse({ status: 204, description: 'Actividad eliminada' })
+  @ApiResponse({ status: 204, description: 'Actividad archivada' })
   @ApiResponse({ status: 404, description: 'Actividad no encontrada' })
+  @ApiResponse({ status: 400, description: 'Tiene dependencias activas' })
   @ApiResponse({ status: 403, description: 'No autorizado' })
-  remove(@Param('id') id: string) {
-    return this.activitiesService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser('id') actorId: string) {
+    return this.activitiesService.remove(id, actorId);
   }
 
   @Post(':id/assign')

@@ -66,6 +66,12 @@ export class StageChangesService {
       throw new NotFoundException('Actividad no encontrada');
     }
 
+    if (!activity.isActive) {
+      throw new ForbiddenException(
+        'La actividad está archivada y no admite solicitudes',
+      );
+    }
+
     // Regla de asignación: el empleado debe estar asignado a la actividad
     await this.assertAssignedOrModerator(dto.activityId, user);
 

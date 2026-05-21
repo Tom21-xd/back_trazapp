@@ -195,18 +195,86 @@ describe('ActivitiesService', () => {
     });
   });
 
-  describe('remove', () => {
-    it('should delete an activity', async () => {
-      mockPrisma.activity.findUnique.mockResolvedValue(mockActivity);
+  describe('remove (soft-delete)', () => {
+    it('archiva la actividad (isActive=false) y registra evento DELETED', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        isActive: true,
+      });
       mockPrisma.activityDependency.count.mockResolvedValue(0);
-      mockPrisma.activityAssignment.deleteMany.mockResolvedValue({ count: 0 });
-      mockPrisma.activityTag.deleteMany.mockResolvedValue({ count: 0 });
-      mockPrisma.activityDependency.deleteMany.mockResolvedValue({ count: 0 });
-      mockPrisma.activity.delete.mockResolvedValue(mockActivity);
+      mockPrisma.activity.update.mockResolvedValue({
+        ...mockActivity,
+        isActive: false,
+      });
 
-      const result = await service.remove('1');
+      const result = await service.remove('1', 'admin1');
 
-      expect(result.message).toBe('Actividad eliminada exitosamente');
+      expect(result.message).toBe('Actividad archivada exitosamente');
+      expect(mockPrisma.activity.update).toHaveBeenCalledWith({
+        where: { id: '1' },
+        data: { isActive: false },
+      });
+      expect(mockEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'DELETED',
+          activityId: '1',
+          actorId: 'admin1',
+        }),
+      );
+    });
+
+    it('rechaza archivar una actividad ya archivada', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        isActive: false,
+      });
+      await expect(service.remove('1', 'admin1')).rejects.toThrow(
+        'ya está archivada',
+      );
+    });
+
+    it('rechaza archivar si tiene dependencias activas', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        isActive: true,
+      });
+      mockPrisma.activityDependency.count.mockResolvedValue(3);
+      await expect(service.remove('1', 'admin1')).rejects.toThrow(
+        'dependen otras activas',
+      );
+    });
+  });
+
+  describe('guards de archivada', () => {
+    it('update rechaza cuando la actividad está archivada', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        isActive: false,
+      });
+      await expect(
+        service.update('1', { title: 'X' }, 'admin1'),
+      ).rejects.toThrow('archivada');
+    });
+
+    it('assignUsers rechaza cuando la actividad está archivada', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        isActive: false,
+        assignments: [],
+      });
+      await expect(
+        service.assignUsers('1', { userIds: ['u1'] }, 'admin1'),
+      ).rejects.toThrow('archivada');
+    });
+
+    it('unassignUser rechaza cuando la actividad está archivada', async () => {
+      mockPrisma.activity.findUnique.mockResolvedValue({
+        ...mockActivity,
+        isActive: false,
+      });
+      await expect(
+        service.unassignUser('1', 'u1', 'admin1'),
+      ).rejects.toThrow('archivada');
     });
   });
 

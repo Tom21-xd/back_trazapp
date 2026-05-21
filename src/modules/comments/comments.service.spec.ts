@@ -80,7 +80,7 @@ describe('CommentsService', () => {
         activityId: 'activity1',
       };
 
-      mockPrismaService.activity.findUnique.mockResolvedValue({ id: 'activity1' });
+      mockPrismaService.activity.findUnique.mockResolvedValue({ id: 'activity1', isActive: true });
       mockPrismaService.comment.create.mockResolvedValue({
         ...mockComment,
         content: createDto.content,
@@ -103,6 +103,17 @@ describe('CommentsService', () => {
 
       await expect(service.create(createDto, 'user1')).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it('rechaza comentar en una actividad archivada', async () => {
+      const createDto = { content: 'X', activityId: 'a1' };
+      mockPrismaService.activity.findUnique.mockResolvedValue({
+        id: 'a1',
+        isActive: false,
+      });
+      await expect(service.create(createDto, 'user1')).rejects.toThrow(
+        'archivada',
       );
     });
   });
@@ -210,6 +221,7 @@ describe('CommentsService', () => {
       mockPrismaService.activity.findUnique.mockResolvedValue({
         id: 'activity1',
         title: 'A',
+        isActive: true,
       });
       mockPrismaService.comment.create.mockResolvedValue({
         ...mockComment,
