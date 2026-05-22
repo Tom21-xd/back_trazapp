@@ -21,9 +21,20 @@ async function bootstrap() {
   app.use(json({ limit: '1mb' }));
   app.use(urlencoded({ extended: true, limit: '1mb' }));
 
-  // CORS
+  // CORS — lista blanca de orígenes (FRONTEND_URL admite varios separados por coma)
+  const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3001')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+    origin: (origin, callback) => {
+      // Permitir herramientas sin origin (curl, health checks, apps móviles)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origen no permitido por CORS: ${origin}`));
+      }
+    },
     credentials: true,
   });
 
@@ -39,7 +50,10 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger Documentation
+  // Swagger Documentation — deshabilitada en producción salvo SWAGGER_ENABLED=true
+  const swaggerEnabled =
+    process.env.NODE_ENV !== 'production' ||
+    process.env.SWAGGER_ENABLED === 'true';
   const config = new DocumentBuilder()
     .setTitle('TrazApp API')
     .setDescription(
@@ -67,17 +81,23 @@ async function bootstrap() {
     )
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document, {
-    customSiteTitle: 'TrazApp API Docs',
-    customfavIcon: 'https://nestjs.com/img/logo-small.svg',
-    customCss: '.swagger-ui .topbar { display: none }',
-  });
+  if (swaggerEnabled) {
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document, {
+      customSiteTitle: 'TrazApp API Docs',
+      customfavIcon: 'https://nestjs.com/img/logo-small.svg',
+      customCss: '.swagger-ui .topbar { display: none }',
+    });
+  }
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
 
   console.log(`🚀 Servidor corriendo en http://localhost:${port}/api`);
-  console.log(`📚 Documentación Swagger en http://localhost:${port}/api/docs`);
+  if (swaggerEnabled) {
+    console.log(
+      `📚 Documentación Swagger en http://localhost:${port}/api/docs`,
+    );
+  }
 }
 bootstrap();

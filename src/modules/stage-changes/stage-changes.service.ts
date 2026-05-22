@@ -35,10 +35,7 @@ export class StageChangesService {
   ) {}
 
   /** 'stagechange:manage:any' gestiona cualquiera; otros solo si están asignados. */
-  private async assertAssignedOrModerator(
-    activityId: string,
-    user: AuthUser,
-  ) {
+  private async assertAssignedOrModerator(activityId: string, user: AuthUser) {
     if (hasAnyPermission(user.permissions, ['stagechange:manage:any'])) return;
 
     const assignment = await this.prisma.activityAssignment.findFirst({
@@ -136,10 +133,7 @@ export class StageChangesService {
     if (filters?.status) where.status = filters.status;
 
     // Alcance: sin 'stagechange:read:any' solo ve sus propias solicitudes
-    if (
-      user &&
-      !hasAnyPermission(user.permissions, ['stagechange:read:any'])
-    ) {
+    if (user && !hasAnyPermission(user.permissions, ['stagechange:read:any'])) {
       where.requestedById = user.id;
     }
 
@@ -149,9 +143,7 @@ export class StageChangesService {
         where,
         include: this.getIncludeOptions(),
         orderBy: { createdAt: 'desc' },
-        ...(resolved.all
-          ? {}
-          : { skip: resolved.skip, take: resolved.take }),
+        ...(resolved.all ? {} : { skip: resolved.skip, take: resolved.take }),
       }),
       this.prisma.stageChangeRequest.count({ where }),
     ]);
@@ -342,9 +334,7 @@ export class StageChangesService {
         where,
         include: this.getIncludeOptions(),
         orderBy: { createdAt: 'desc' },
-        ...(resolved.all
-          ? {}
-          : { skip: resolved.skip, take: resolved.take }),
+        ...(resolved.all ? {} : { skip: resolved.skip, take: resolved.take }),
       }),
       this.prisma.stageChangeRequest.count({ where }),
     ]);

@@ -1,10 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RolesService } from './roles.service';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 describe('RolesService', () => {
   let service: RolesService;

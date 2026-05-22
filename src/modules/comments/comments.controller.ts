@@ -37,16 +37,17 @@ export class CommentsController {
   @ApiOperation({ summary: 'Crear nuevo comentario' })
   @ApiResponse({ status: 201, description: 'Comentario creado exitosamente' })
   @ApiResponse({ status: 404, description: 'Actividad no encontrada' })
-  create(
-    @Body() dto: CreateCommentDto,
-    @CurrentUser('id') userId: string,
-  ) {
+  create(@Body() dto: CreateCommentDto, @CurrentUser('id') userId: string) {
     return this.commentsService.create(dto, userId);
   }
 
   @Get()
   @ApiOperation({ summary: 'Obtener comentarios de una actividad (paginado)' })
-  @ApiQuery({ name: 'activityId', required: true, description: 'ID de la actividad' })
+  @ApiQuery({
+    name: 'activityId',
+    required: true,
+    description: 'ID de la actividad',
+  })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
@@ -79,7 +80,10 @@ export class CommentsController {
   @ApiParam({ name: 'id', description: 'ID del comentario' })
   @ApiResponse({ status: 200, description: 'Comentario actualizado' })
   @ApiResponse({ status: 404, description: 'Comentario no encontrado' })
-  @ApiResponse({ status: 403, description: 'No tienes permisos para editar este comentario' })
+  @ApiResponse({
+    status: 403,
+    description: 'No tienes permisos para editar este comentario',
+  })
   update(
     @Param('id') id: string,
     @Body() dto: UpdateCommentDto,
@@ -95,7 +99,10 @@ export class CommentsController {
   @ApiParam({ name: 'id', description: 'ID del comentario' })
   @ApiResponse({ status: 204, description: 'Comentario eliminado' })
   @ApiResponse({ status: 404, description: 'Comentario no encontrado' })
-  @ApiResponse({ status: 403, description: 'No tienes permisos para eliminar este comentario' })
+  @ApiResponse({
+    status: 403,
+    description: 'No tienes permisos para eliminar este comentario',
+  })
   remove(
     @Param('id') id: string,
     @CurrentUser() user: { id: string; permissions: string[] },

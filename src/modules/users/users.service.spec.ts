@@ -111,13 +111,18 @@ describe('UsersService', () => {
       const result = await service.remove('1');
 
       expect(result.message).toBe('Usuario eliminado exitosamente');
-      expect(mockPrisma.user.delete).toHaveBeenCalledWith({ where: { id: '1' } });
+      expect(mockPrisma.user.delete).toHaveBeenCalledWith({
+        where: { id: '1' },
+      });
     });
   });
 
   describe('activate', () => {
     it('should activate a user', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, isActive: false });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        isActive: false,
+      });
       mockPrisma.user.update.mockResolvedValue({ ...mockUser, isActive: true });
 
       const result = await service.activate('1');
@@ -129,7 +134,10 @@ describe('UsersService', () => {
   describe('deactivate', () => {
     it('should deactivate a user', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
-      mockPrisma.user.update.mockResolvedValue({ ...mockUser, isActive: false });
+      mockPrisma.user.update.mockResolvedValue({
+        ...mockUser,
+        isActive: false,
+      });
 
       const result = await service.deactivate('1');
 

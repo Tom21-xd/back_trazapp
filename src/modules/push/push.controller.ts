@@ -28,13 +28,18 @@ export class PushController {
   @Public()
   @Get('vapid-public-key')
   @ApiOperation({ summary: 'Clave pública VAPID para crear suscripciones' })
-  @ApiResponse({ status: 200, description: 'Clave pública o null si no está habilitado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Clave pública o null si no está habilitado',
+  })
   getPublicKey() {
     return { publicKey: this.push.getPublicKey() };
   }
 
   @Post('subscription')
-  @ApiOperation({ summary: 'Registrar (o actualizar) la suscripción push del dispositivo' })
+  @ApiOperation({
+    summary: 'Registrar (o actualizar) la suscripción push del dispositivo',
+  })
   @ApiResponse({ status: 201, description: 'Suscripción guardada' })
   subscribe(
     @CurrentUser('id') userId: string,

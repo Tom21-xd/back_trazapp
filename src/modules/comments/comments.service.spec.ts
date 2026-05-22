@@ -17,7 +17,6 @@ const stranger = { id: 'user2', permissions: [] as string[] };
 
 describe('CommentsService', () => {
   let service: CommentsService;
-  let prisma: PrismaService;
   const mockEvents = { record: jest.fn(), list: jest.fn() };
 
   const mockPrismaService = {
@@ -64,7 +63,6 @@ describe('CommentsService', () => {
     }).compile();
 
     service = module.get<CommentsService>(CommentsService);
-    prisma = module.get<PrismaService>(PrismaService);
 
     jest.clearAllMocks();
   });
@@ -80,7 +78,10 @@ describe('CommentsService', () => {
         activityId: 'activity1',
       };
 
-      mockPrismaService.activity.findUnique.mockResolvedValue({ id: 'activity1', isActive: true });
+      mockPrismaService.activity.findUnique.mockResolvedValue({
+        id: 'activity1',
+        isActive: true,
+      });
       mockPrismaService.comment.create.mockResolvedValue({
         ...mockComment,
         content: createDto.content,
@@ -172,9 +173,9 @@ describe('CommentsService', () => {
 
       mockPrismaService.comment.findUnique.mockResolvedValue(mockComment);
 
-      await expect(
-        service.update('1', updateDto, stranger),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.update('1', updateDto, stranger)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should throw NotFoundException if comment not found', async () => {
@@ -229,7 +230,10 @@ describe('CommentsService', () => {
         content: 'hola',
       });
 
-      await service.create({ content: 'hola', activityId: 'activity1' }, 'user1');
+      await service.create(
+        { content: 'hola', activityId: 'activity1' },
+        'user1',
+      );
 
       expect(mockEvents.record).toHaveBeenCalledWith(
         expect.objectContaining({

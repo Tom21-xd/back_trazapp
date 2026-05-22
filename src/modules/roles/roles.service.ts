@@ -58,9 +58,7 @@ export class RolesService {
       this.prisma.appRole.findMany({
         include,
         orderBy: { name: 'asc' },
-        ...(resolved.all
-          ? {}
-          : { skip: resolved.skip, take: resolved.take }),
+        ...(resolved.all ? {} : { skip: resolved.skip, take: resolved.take }),
       }),
       this.prisma.appRole.count(),
     ]);
@@ -105,9 +103,7 @@ export class RolesService {
     });
     if (exists) throw new ConflictException('Ya existe un rol con ese nombre');
 
-    const permissionIds = await this.permissionIdsFromKeys(
-      dto.permissionKeys,
-    );
+    const permissionIds = await this.permissionIdsFromKeys(dto.permissionKeys);
 
     const role = await this.prisma.appRole.create({
       data: {
@@ -179,9 +175,7 @@ export class RolesService {
     });
     if (!role) throw new NotFoundException('Rol no encontrado');
     if (role.isSystem) {
-      throw new BadRequestException(
-        'No se puede eliminar un rol del sistema',
-      );
+      throw new BadRequestException('No se puede eliminar un rol del sistema');
     }
     if (role._count.users > 0) {
       throw new BadRequestException(

@@ -19,8 +19,13 @@ export class AppController {
   @Public()
   @Get('health')
   @ApiTags('health')
-  @ApiOperation({ summary: 'Health check — usado por load balancers / uptime monitors' })
-  @ApiResponse({ status: 200, description: 'Servicio arriba y BD respondiendo' })
+  @ApiOperation({
+    summary: 'Health check — usado por load balancers / uptime monitors',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Servicio arriba y BD respondiendo',
+  })
   @ApiResponse({ status: 503, description: 'BD no responde' })
   async health() {
     const startedAt = process.uptime();

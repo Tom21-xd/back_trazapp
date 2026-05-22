@@ -6,7 +6,9 @@ import { IsOptional, IsUUID } from 'class-validator';
  * La validación de "exactamente uno" se hace en el servicio.
  */
 export class UploadFileDto {
-  @ApiPropertyOptional({ description: 'ID de la actividad a la que se adjunta' })
+  @ApiPropertyOptional({
+    description: 'ID de la actividad a la que se adjunta',
+  })
   @IsOptional()
   @IsUUID()
   activityId?: string;

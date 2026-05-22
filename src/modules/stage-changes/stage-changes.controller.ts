@@ -41,7 +41,10 @@ export class StageChangesController {
   @ApiOperation({ summary: 'Crear solicitud de cambio de etapa' })
   @ApiResponse({ status: 201, description: 'Solicitud creada exitosamente' })
   @ApiResponse({ status: 404, description: 'Actividad o etapa no encontrada' })
-  @ApiResponse({ status: 400, description: 'La actividad ya está en la etapa solicitada' })
+  @ApiResponse({
+    status: 400,
+    description: 'La actividad ya está en la etapa solicitada',
+  })
   createRequest(
     @Body() dto: CreateStageChangeRequestDto,
     @CurrentUser() user: { id: string; permissions: string[] },
@@ -52,8 +55,17 @@ export class StageChangesController {
   @Get()
   @RequireAnyPermission('stagechange:read:own', 'stagechange:read:any')
   @ApiOperation({ summary: 'Obtener todas las solicitudes de cambio' })
-  @ApiQuery({ name: 'activityId', required: false, description: 'Filtrar por actividad' })
-  @ApiQuery({ name: 'status', required: false, enum: StageChangeStatus, description: 'Filtrar por estado' })
+  @ApiQuery({
+    name: 'activityId',
+    required: false,
+    description: 'Filtrar por actividad',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: StageChangeStatus,
+    description: 'Filtrar por estado',
+  })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
@@ -79,7 +91,10 @@ export class StageChangesController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
-  @ApiResponse({ status: 200, description: 'Lista paginada de solicitudes pendientes' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista paginada de solicitudes pendientes',
+  })
   @ApiResponse({ status: 403, description: 'No autorizado' })
   getPending(
     @Query('page') page?: string,
@@ -95,7 +110,10 @@ export class StageChangesController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
-  @ApiResponse({ status: 200, description: 'Lista paginada de solicitudes del usuario' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista paginada de solicitudes del usuario',
+  })
   getMyRequests(
     @CurrentUser('id') userId: string,
     @Query('page') page?: string,
@@ -137,15 +155,21 @@ export class StageChangesController {
 
   @Patch(':id/cancel')
   @RequireAnyPermission('stagechange:create', 'stagechange:manage:any')
-  @ApiOperation({ summary: 'Cancelar una solicitud pendiente (propia o cualquiera con manage:any)' })
+  @ApiOperation({
+    summary:
+      'Cancelar una solicitud pendiente (propia o cualquiera con manage:any)',
+  })
   @ApiParam({ name: 'id', description: 'ID de la solicitud' })
   @ApiResponse({ status: 200, description: 'Solicitud cancelada' })
-  @ApiResponse({ status: 400, description: 'La solicitud ya no está pendiente' })
-  @ApiResponse({ status: 403, description: 'No puedes cancelar esta solicitud' })
-  cancel(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
-  ) {
+  @ApiResponse({
+    status: 400,
+    description: 'La solicitud ya no está pendiente',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'No puedes cancelar esta solicitud',
+  })
+  cancel(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.stageChangesService.cancelRequest(id, user);
   }
 

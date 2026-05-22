@@ -31,7 +31,10 @@ describe('AuthService', () => {
     },
   };
 
-  const mockJwt = { sign: jest.fn().mockReturnValue('mock-token'), verify: jest.fn() };
+  const mockJwt = {
+    sign: jest.fn().mockReturnValue('mock-token'),
+    verify: jest.fn(),
+  };
 
   const mockConfig = {
     get: jest.fn((key: string) => {
@@ -65,13 +68,22 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    const dto = { email: 'test@test.com', password: 'password123', name: 'Test' };
+    const dto = {
+      email: 'test@test.com',
+      password: 'password123',
+      name: 'Test',
+    };
 
     it('should register a new user and return tokens', async () => {
-      jest.spyOn(bcrypt, 'hash').mockImplementation(() => Promise.resolve('hashed'));
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockImplementation(() => Promise.resolve('hashed'));
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({
-        id: '1', email: dto.email, name: dto.name, createdAt: new Date(),
+        id: '1',
+        email: dto.email,
+        name: dto.name,
+        createdAt: new Date(),
       });
       mockPrisma.refreshToken.create.mockResolvedValue({});
 
@@ -94,11 +106,16 @@ describe('AuthService', () => {
 
     it('should login with valid credentials', async () => {
       const mockUser = {
-        id: '1', email: dto.email, password: 'hashed', name: 'Test',
+        id: '1',
+        email: dto.email,
+        password: 'hashed',
+        name: 'Test',
         isActive: true,
       };
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
-      jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(true));
+      jest
+        .spyOn(bcrypt, 'compare')
+        .mockImplementation(() => Promise.resolve(true));
       mockPrisma.user.update.mockResolvedValue(mockUser);
       mockPrisma.refreshToken.create.mockResolvedValue({});
 
@@ -116,23 +133,33 @@ describe('AuthService', () => {
 
     it('should throw UnauthorizedException if user is inactive', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
-        id: '1', email: dto.email, password: 'hashed', isActive: false,
+        id: '1',
+        email: dto.email,
+        password: 'hashed',
+        isActive: false,
       });
       await expect(service.login(dto)).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException with wrong password', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
-        id: '1', email: dto.email, password: 'hashed', isActive: true,
+        id: '1',
+        email: dto.email,
+        password: 'hashed',
+        isActive: true,
       });
-      jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(false));
+      jest
+        .spyOn(bcrypt, 'compare')
+        .mockImplementation(() => Promise.resolve(false));
       await expect(service.login(dto)).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('refreshToken', () => {
     it('should throw UnauthorizedException with invalid token', async () => {
-      mockJwt.verify.mockImplementation(() => { throw new Error(); });
+      mockJwt.verify.mockImplementation(() => {
+        throw new Error();
+      });
       await expect(
         service.refreshToken({ refreshToken: 'invalid' }),
       ).rejects.toThrow(UnauthorizedException);
@@ -150,6 +177,85 @@ describe('AuthService', () => {
         where: { userId: 'user1', revokedAt: null },
         data: { revokedAt: expect.any(Date) },
       });
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('actualiza sólo los campos enviados', async () => {
+      mockPrisma.user.update.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        name: 'Nuevo',
+        phone: '123',
+        avatar: null,
+        appRoleId: null,
+      });
+
+      const res = await service.updateProfile('u1', { name: 'Nuevo' });
+
+      expect(res.name).toBe('Nuevo');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u1' },
+          data: { name: 'Nuevo' },
+        }),
+      );
+    });
+  });
+
+  describe('changePassword', () => {
+    it('cambia la contraseña y revoca sesiones', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        password: 'hash-actual',
+      });
+      jest
+        .spyOn(bcrypt, 'compare')
+        .mockImplementation(() => Promise.resolve(true));
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockImplementation(() => Promise.resolve('hash-nuevo'));
+      mockPrisma.user.update.mockResolvedValue({});
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+
+      const res = await service.changePassword('u1', 'actual', 'nueva123');
+
+      expect(res.message).toContain('actualizada');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u1' },
+          data: { password: 'hash-nuevo' },
+        }),
+      );
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalled();
+    });
+
+    it('rechaza si la contraseña actual es incorrecta', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        password: 'hash-actual',
+      });
+      jest
+        .spyOn(bcrypt, 'compare')
+        .mockImplementation(() => Promise.resolve(false));
+
+      await expect(
+        service.changePassword('u1', 'mala', 'nueva123'),
+      ).rejects.toThrow('actual no es correcta');
+    });
+
+    it('rechaza si la nueva contraseña es igual a la actual', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        password: 'hash-actual',
+      });
+      jest
+        .spyOn(bcrypt, 'compare')
+        .mockImplementation(() => Promise.resolve(true));
+
+      await expect(
+        service.changePassword('u1', 'igual', 'igual'),
+      ).rejects.toThrow('distinta');
     });
   });
 
@@ -224,7 +330,9 @@ describe('AuthService', () => {
       });
       mockPrisma.user.update.mockResolvedValue({});
       mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
-      jest.spyOn(bcrypt, 'hash').mockImplementation(() => Promise.resolve('hashed'));
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockImplementation(() => Promise.resolve('hashed'));
 
       const res = await service.resetPassword('a'.repeat(64), 'newpass1');
 

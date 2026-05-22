@@ -50,9 +50,7 @@ export class StagesService {
         where,
         include,
         orderBy: { order: 'asc' },
-        ...(resolved.all
-          ? {}
-          : { skip: resolved.skip, take: resolved.take }),
+        ...(resolved.all ? {} : { skip: resolved.skip, take: resolved.take }),
       }),
       this.prisma.stage.count({ where }),
     ]);

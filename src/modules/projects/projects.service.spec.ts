@@ -122,7 +122,10 @@ describe('ProjectsService', () => {
     it('should update project data', async () => {
       const updateDto = { name: 'Updated Name' };
       mockPrisma.project.findUnique.mockResolvedValue(mockProject);
-      mockPrisma.project.update.mockResolvedValue({ ...mockProject, ...updateDto });
+      mockPrisma.project.update.mockResolvedValue({
+        ...mockProject,
+        ...updateDto,
+      });
 
       const result = await service.update('1', updateDto);
 
@@ -148,7 +151,9 @@ describe('ProjectsService', () => {
       const result = await service.remove('1');
 
       expect(result.message).toBe('Proyecto eliminado exitosamente');
-      expect(mockPrisma.project.delete).toHaveBeenCalledWith({ where: { id: '1' } });
+      expect(mockPrisma.project.delete).toHaveBeenCalledWith({
+        where: { id: '1' },
+      });
     });
   });
 

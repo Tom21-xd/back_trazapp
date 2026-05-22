@@ -76,7 +76,11 @@ export class AuditInterceptor implements NestInterceptor {
           action = AuditAction.LOGIN;
         else if (base === 'auth' && path.includes('/logout'))
           action = AuditAction.LOGOUT;
-        else if (base === 'stage-changes' && method === 'POST' && path.endsWith('stage-changes'))
+        else if (
+          base === 'stage-changes' &&
+          method === 'POST' &&
+          path.endsWith('stage-changes')
+        )
           action = AuditAction.STAGE_CHANGE_REQUEST;
         else if (base === 'stage-changes' && path.includes('/review'))
           action = AuditAction.UPDATE;

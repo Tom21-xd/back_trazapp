@@ -19,7 +19,8 @@ export class CreateStageChangeRequestDto {
   toStageId: string;
 
   @ApiProperty({
-    example: 'Se completaron todos los requisitos para pasar a la siguiente etapa',
+    example:
+      'Se completaron todos los requisitos para pasar a la siguiente etapa',
     description: 'Descripción o justificación del cambio de etapa',
   })
   @IsString()

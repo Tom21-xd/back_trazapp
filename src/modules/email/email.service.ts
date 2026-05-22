@@ -137,7 +137,12 @@ export class EmailService implements OnModuleInit {
     const targets = [...new Set(userIds)].filter(Boolean);
     if (targets.length === 0) return;
 
-    let users: { id: string; email: string; name: string; isActive: boolean }[] = [];
+    let users: {
+      id: string;
+      email: string;
+      name: string;
+      isActive: boolean;
+    }[] = [];
     try {
       users = await this.prisma.user.findMany({
         where: { id: { in: targets }, isActive: true },

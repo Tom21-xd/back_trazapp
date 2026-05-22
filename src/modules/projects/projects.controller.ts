@@ -40,7 +40,11 @@ export class ProjectsController {
   @Get()
   @RequirePermissions('project:read')
   @ApiOperation({ summary: 'Obtener todos los proyectos (paginado)' })
-  @ApiQuery({ name: 'includeInactive', required: false, description: 'Incluir proyectos inactivos' })
+  @ApiQuery({
+    name: 'includeInactive',
+    required: false,
+    description: 'Incluir proyectos inactivos',
+  })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })

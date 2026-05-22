@@ -30,7 +30,8 @@ describe('Users (e2e)', () => {
     await app.init();
 
     // Crear usuario ADMIN directamente en la BD
-    const hashedPassword = '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW'; // password123
+    const hashedPassword =
+      '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW'; // password123
     const admin = await prisma.user.create({
       data: {
         email: 'admin@test.com',
@@ -147,7 +148,7 @@ describe('Users (e2e)', () => {
     });
 
     it('should fail to update with duplicate email', async () => {
-      const user = await prisma.user.create({
+      await prisma.user.create({
         data: {
           email: 'unique@test.com',
           password: 'hashedpass',

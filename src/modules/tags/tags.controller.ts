@@ -32,7 +32,10 @@ export class TagsController {
   @RequirePermissions('tag:create')
   @ApiOperation({ summary: 'Crear nueva etiqueta' })
   @ApiResponse({ status: 201, description: 'Etiqueta creada exitosamente' })
-  @ApiResponse({ status: 409, description: 'Ya existe una etiqueta con ese nombre' })
+  @ApiResponse({
+    status: 409,
+    description: 'Ya existe una etiqueta con ese nombre',
+  })
   @ApiResponse({ status: 403, description: 'No autorizado' })
   create(@Body() dto: CreateTagDto) {
     return this.tagsService.create(dto);
@@ -67,7 +70,10 @@ export class TagsController {
   @ApiParam({ name: 'id', description: 'ID de la etiqueta' })
   @ApiResponse({ status: 200, description: 'Etiqueta actualizada' })
   @ApiResponse({ status: 404, description: 'Etiqueta no encontrada' })
-  @ApiResponse({ status: 409, description: 'Ya existe una etiqueta con ese nombre' })
+  @ApiResponse({
+    status: 409,
+    description: 'Ya existe una etiqueta con ese nombre',
+  })
   @ApiResponse({ status: 403, description: 'No autorizado' })
   update(@Param('id') id: string, @Body() dto: UpdateTagDto) {
     return this.tagsService.update(id, dto);

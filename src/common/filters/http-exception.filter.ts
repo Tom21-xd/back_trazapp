@@ -74,9 +74,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : `Consulta Prisma inválida: ${exception.message
             .replace(/\n/g, ' ')
             .slice(0, 300)}`;
-    } else if (
-      exception instanceof Prisma.PrismaClientInitializationError
-    ) {
+    } else if (exception instanceof Prisma.PrismaClientInitializationError) {
       dbError = true;
       status = HttpStatus.SERVICE_UNAVAILABLE;
       message =

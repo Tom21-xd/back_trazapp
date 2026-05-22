@@ -5,7 +5,6 @@ import { NotFoundException, ConflictException } from '@nestjs/common';
 
 describe('StagesService', () => {
   let service: StagesService;
-  let prisma: PrismaService;
 
   const mockPrismaService = {
     stage: {
@@ -16,8 +15,8 @@ describe('StagesService', () => {
       delete: jest.fn(),
       count: jest.fn(),
     },
-    $transaction: jest.fn(
-      (ops: any): any => (Array.isArray(ops) ? Promise.all(ops) : ops),
+    $transaction: jest.fn((ops: any): any =>
+      Array.isArray(ops) ? Promise.all(ops) : ops,
     ),
   };
 
@@ -41,7 +40,6 @@ describe('StagesService', () => {
     }).compile();
 
     service = module.get<StagesService>(StagesService);
-    prisma = module.get<PrismaService>(PrismaService);
 
     jest.clearAllMocks();
   });
@@ -81,7 +79,9 @@ describe('StagesService', () => {
 
       mockPrismaService.stage.findUnique.mockResolvedValue(mockStage);
 
-      await expect(service.create(createDto)).rejects.toThrow(ConflictException);
+      await expect(service.create(createDto)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -160,7 +160,9 @@ describe('StagesService', () => {
         _count: { activitiesCurrent: 0, stageHistory: 0 },
       };
 
-      mockPrismaService.stage.findUnique.mockResolvedValue(stageWith0Activities);
+      mockPrismaService.stage.findUnique.mockResolvedValue(
+        stageWith0Activities,
+      );
       mockPrismaService.stage.delete.mockResolvedValue(mockStage);
 
       await service.remove('1');

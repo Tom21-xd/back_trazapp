@@ -99,13 +99,11 @@ describe('Auth (e2e)', () => {
 
   describe('/auth/login (POST)', () => {
     beforeAll(async () => {
-      await request(app.getHttpServer())
-        .post('/api/auth/register')
-        .send({
-          email: 'loginuser@example.com',
-          password: 'Password123!',
-          name: 'Login User',
-        });
+      await request(app.getHttpServer()).post('/api/auth/register').send({
+        email: 'loginuser@example.com',
+        password: 'Password123!',
+        name: 'Login User',
+      });
     });
 
     it('should login with valid credentials', () => {

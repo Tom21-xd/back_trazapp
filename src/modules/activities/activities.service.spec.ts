@@ -21,7 +21,11 @@ describe('ActivitiesService', () => {
     },
     project: { findUnique: jest.fn() },
     stage: { findUnique: jest.fn() },
-    activityAssignment: { deleteMany: jest.fn(), createMany: jest.fn(), delete: jest.fn() },
+    activityAssignment: {
+      deleteMany: jest.fn(),
+      createMany: jest.fn(),
+      delete: jest.fn(),
+    },
     activityTag: { deleteMany: jest.fn(), createMany: jest.fn() },
     activityDependency: {
       deleteMany: jest.fn(),
@@ -272,9 +276,9 @@ describe('ActivitiesService', () => {
         ...mockActivity,
         isActive: false,
       });
-      await expect(
-        service.unassignUser('1', 'u1', 'admin1'),
-      ).rejects.toThrow('archivada');
+      await expect(service.unassignUser('1', 'u1', 'admin1')).rejects.toThrow(
+        'archivada',
+      );
     });
   });
 

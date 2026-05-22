@@ -11,7 +11,6 @@ const adminUser = { id: 'user1', permissions: ['stagechange:manage:any'] };
 
 describe('StageChangesService', () => {
   let service: StageChangesService;
-  let prisma: PrismaService;
   const mockEvents = { record: jest.fn(), list: jest.fn() };
 
   const mockPrismaService = {
@@ -78,7 +77,6 @@ describe('StageChangesService', () => {
     }).compile();
 
     service = module.get<StageChangesService>(StageChangesService);
-    prisma = module.get<PrismaService>(PrismaService);
 
     jest.clearAllMocks();
   });
@@ -359,9 +357,9 @@ describe('StageChangesService', () => {
         status: StageChangeStatus.APROBADO,
       });
 
-      await expect(
-        service.cancelRequest('1', ownerUser),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.cancelRequest('1', ownerUser)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('rechaza si no es el solicitante ni manager', async () => {
@@ -369,9 +367,9 @@ describe('StageChangesService', () => {
         mockStageChangeRequest,
       );
 
-      await expect(
-        service.cancelRequest('1', strangerUser),
-      ).rejects.toThrow('No puedes cancelar');
+      await expect(service.cancelRequest('1', strangerUser)).rejects.toThrow(
+        'No puedes cancelar',
+      );
     });
   });
 
@@ -473,7 +471,9 @@ describe('StageChangesService', () => {
 
       expect(result.data).toBeDefined();
       expect(result.meta.total).toBe(1);
-      expect(mockPrismaService.stageChangeRequest.findMany).toHaveBeenCalledWith(
+      expect(
+        mockPrismaService.stageChangeRequest.findMany,
+      ).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { requestedById: userId },
           orderBy: { createdAt: 'desc' },

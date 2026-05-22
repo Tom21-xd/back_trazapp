@@ -57,9 +57,7 @@ export class ProjectsService {
         where,
         include,
         orderBy: { createdAt: 'desc' },
-        ...(resolved.all
-          ? {}
-          : { skip: resolved.skip, take: resolved.take }),
+        ...(resolved.all ? {} : { skip: resolved.skip, take: resolved.take }),
       }),
       this.prisma.project.count({ where }),
     ]);

@@ -48,9 +48,7 @@ export class TagsService {
       this.prisma.tag.findMany({
         include,
         orderBy: { name: 'asc' },
-        ...(resolved.all
-          ? {}
-          : { skip: resolved.skip, take: resolved.take }),
+        ...(resolved.all ? {} : { skip: resolved.skip, take: resolved.take }),
       }),
       this.prisma.tag.count(),
     ]);

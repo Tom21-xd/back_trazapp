@@ -33,7 +33,10 @@ export class StagesController {
   @RequirePermissions('stage:create')
   @ApiOperation({ summary: 'Crear nueva etapa' })
   @ApiResponse({ status: 201, description: 'Etapa creada exitosamente' })
-  @ApiResponse({ status: 409, description: 'Ya existe una etapa con ese nombre' })
+  @ApiResponse({
+    status: 409,
+    description: 'Ya existe una etapa con ese nombre',
+  })
   @ApiResponse({ status: 403, description: 'No autorizado' })
   create(@Body() dto: CreateStageDto) {
     return this.stagesService.create(dto);
@@ -41,11 +44,18 @@ export class StagesController {
 
   @Get()
   @ApiOperation({ summary: 'Obtener todas las etapas (paginado)' })
-  @ApiQuery({ name: 'includeInactive', required: false, description: 'Incluir etapas inactivas' })
+  @ApiQuery({
+    name: 'includeInactive',
+    required: false,
+    description: 'Incluir etapas inactivas',
+  })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
-  @ApiResponse({ status: 200, description: 'Lista paginada de etapas ordenadas' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista paginada de etapas ordenadas',
+  })
   findAll(
     @Query('includeInactive') includeInactive?: string,
     @Query('page') page?: string,
@@ -74,7 +84,10 @@ export class StagesController {
   @ApiParam({ name: 'id', description: 'ID de la etapa' })
   @ApiResponse({ status: 200, description: 'Etapa actualizada' })
   @ApiResponse({ status: 404, description: 'Etapa no encontrada' })
-  @ApiResponse({ status: 409, description: 'Ya existe una etapa con ese nombre' })
+  @ApiResponse({
+    status: 409,
+    description: 'Ya existe una etapa con ese nombre',
+  })
   @ApiResponse({ status: 403, description: 'No autorizado' })
   update(@Param('id') id: string, @Body() dto: UpdateStageDto) {
     return this.stagesService.update(id, dto);
@@ -87,7 +100,10 @@ export class StagesController {
   @ApiParam({ name: 'id', description: 'ID de la etapa' })
   @ApiResponse({ status: 204, description: 'Etapa eliminada' })
   @ApiResponse({ status: 404, description: 'Etapa no encontrada' })
-  @ApiResponse({ status: 409, description: 'No se puede eliminar una etapa con actividades' })
+  @ApiResponse({
+    status: 409,
+    description: 'No se puede eliminar una etapa con actividades',
+  })
   @ApiResponse({ status: 403, description: 'No autorizado' })
   remove(@Param('id') id: string) {
     return this.stagesService.remove(id);

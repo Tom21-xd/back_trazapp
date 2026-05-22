@@ -255,6 +255,66 @@ export class AuthService {
     };
   }
 
+  /** El usuario edita su propio perfil (nombre, teléfono, avatar). */
+  async updateProfile(
+    userId: string,
+    data: { name?: string; phone?: string; avatar?: string },
+  ) {
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.phone !== undefined ? { phone: data.phone } : {}),
+        ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        avatar: true,
+        appRoleId: true,
+      },
+    });
+    return updated;
+  }
+
+  /** Cambio de contraseña con el usuario autenticado (requiere la actual). */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('Usuario no encontrado');
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) {
+      throw new BadRequestException('La contraseña actual no es correcta');
+    }
+    if (currentPassword === newPassword) {
+      throw new BadRequestException(
+        'La nueva contraseña debe ser distinta a la actual',
+      );
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed },
+    });
+
+    // Revoca el resto de sesiones por seguridad
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    return { message: 'Contraseña actualizada correctamente' };
+  }
+
   async logout(userId: string) {
     // Revoca TODAS las sesiones activas del usuario (no requiere enviar el token)
     await this.prisma.refreshToken.updateMany({

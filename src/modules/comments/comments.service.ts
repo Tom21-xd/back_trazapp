@@ -63,11 +63,7 @@ export class CommentsService {
       },
     });
 
-    await this.notifications.newComment(
-      dto.activityId,
-      activity.title,
-      userId,
-    );
+    await this.notifications.newComment(dto.activityId, activity.title, userId);
 
     await this.events.record({
       activityId: dto.activityId,
@@ -98,9 +94,7 @@ export class CommentsService {
         where: { activityId },
         include,
         orderBy: { createdAt: 'desc' },
-        ...(resolved.all
-          ? {}
-          : { skip: resolved.skip, take: resolved.take }),
+        ...(resolved.all ? {} : { skip: resolved.skip, take: resolved.take }),
       }),
       this.prisma.comment.count({ where: { activityId } }),
     ]);

@@ -47,7 +47,11 @@ export class NotificationsController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'all', required: false })
-  @ApiQuery({ name: 'unread', required: false, description: 'true: solo no leídas' })
+  @ApiQuery({
+    name: 'unread',
+    required: false,
+    description: 'true: solo no leídas',
+  })
   @ApiResponse({ status: 200, description: 'Lista paginada de notificaciones' })
   findMine(
     @CurrentUser('id') userId: string,
@@ -160,10 +164,7 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Marcar una notificación como leída' })
   @ApiResponse({ status: 200, description: 'Notificación actualizada' })
   @ApiResponse({ status: 404, description: 'No encontrada' })
-  async markRead(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: string,
-  ) {
+  async markRead(@Param('id') id: string, @CurrentUser('id') userId: string) {
     const res = await this.service.markRead(id, userId);
     // Refresca el badge en todas las pestañas
     const { count } = await this.service.unreadCount(userId);

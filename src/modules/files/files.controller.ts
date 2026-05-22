@@ -50,7 +50,10 @@ export class FilesController {
       'Subir un archivo y adjuntarlo a una actividad, comentario o solicitud',
   })
   @ApiResponse({ status: 201, description: 'Archivo subido' })
-  @ApiResponse({ status: 400, description: 'Archivo inválido o destino incorrecto' })
+  @ApiResponse({
+    status: 400,
+    description: 'Archivo inválido o destino incorrecto',
+  })
   @ApiResponse({ status: 403, description: 'Sin permisos sobre la actividad' })
   @UseInterceptors(
     FileInterceptor('file', {

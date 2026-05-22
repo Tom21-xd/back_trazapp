@@ -70,9 +70,7 @@ export class UsersService {
       this.prisma.user.findMany({
         select: USER_PUBLIC_SELECT,
         orderBy: { createdAt: 'desc' },
-        ...(resolved.all
-          ? {}
-          : { skip: resolved.skip, take: resolved.take }),
+        ...(resolved.all ? {} : { skip: resolved.skip, take: resolved.take }),
       }),
       this.prisma.user.count(),
     ]);

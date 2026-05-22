@@ -23,6 +23,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:seed": "prisma db seed",
+    "seed:demo-data": "node -r ts-node/register prisma/seed-demo-data.ts",
     "db:reset": "prisma migrate reset",
     "db:setup": "prisma migrate deploy && prisma db seed",
     "postinstall": "prisma generate --generator client"

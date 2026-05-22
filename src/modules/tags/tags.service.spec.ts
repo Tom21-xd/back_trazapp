@@ -5,7 +5,6 @@ import { NotFoundException, ConflictException } from '@nestjs/common';
 
 describe('TagsService', () => {
   let service: TagsService;
-  let prisma: PrismaService;
 
   const mockPrismaService = {
     tag: {
@@ -38,7 +37,6 @@ describe('TagsService', () => {
     }).compile();
 
     service = module.get<TagsService>(TagsService);
-    prisma = module.get<PrismaService>(PrismaService);
 
     jest.clearAllMocks();
   });
@@ -77,7 +75,9 @@ describe('TagsService', () => {
         name: 'Existing Tag',
       });
 
-      await expect(service.create(createDto)).rejects.toThrow(ConflictException);
+      await expect(service.create(createDto)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 

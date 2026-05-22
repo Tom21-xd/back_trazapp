@@ -31,12 +31,8 @@ export class ActivitiesService {
   ) {}
 
   async create(dto: CreateActivityDto, createdById: string) {
-    const {
-      assignedUserIds,
-      tagIds,
-      dependsOnActivityIds,
-      ...activityData
-    } = dto;
+    const { assignedUserIds, tagIds, dependsOnActivityIds, ...activityData } =
+      dto;
 
     // Verificar que existen project y stage
     await this.verifyProjectAndStage(dto.projectId, dto.currentStageId);
@@ -150,9 +146,7 @@ export class ActivitiesService {
         where,
         include: this.getIncludeOptions(),
         orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
-        ...(resolved.all
-          ? {}
-          : { skip: resolved.skip, take: resolved.take }),
+        ...(resolved.all ? {} : { skip: resolved.skip, take: resolved.take }),
       }),
       this.prisma.activity.count({ where }),
     ]);
@@ -219,7 +213,11 @@ export class ActivitiesService {
   }
 
   /** Timeline inmutable de eventos de la actividad. */
-  async listEvents(id: string, user: AuthUser, pagination: PaginationQuery = {}) {
+  async listEvents(
+    id: string,
+    user: AuthUser,
+    pagination: PaginationQuery = {},
+  ) {
     await this.findOneScoped(id, user);
     return this.events.list(id, pagination);
   }
@@ -366,8 +364,12 @@ export class ActivitiesService {
       }
     }
     if (assignedUserIds !== undefined) {
-      const added = assignedUserIds.filter((u) => !previousAssignees.includes(u));
-      const removed = previousAssignees.filter((u) => !assignedUserIds.includes(u));
+      const added = assignedUserIds.filter(
+        (u) => !previousAssignees.includes(u),
+      );
+      const removed = previousAssignees.filter(
+        (u) => !assignedUserIds.includes(u),
+      );
       for (const targetUserId of added) {
         await this.events.record({
           activityId: id,
@@ -407,7 +409,10 @@ export class ActivitiesService {
       | { from: string | null; to: string | null }
       | { added: string[]; removed: string[] };
     const fieldChanges: Record<string, FieldDiff> = {};
-    if (activityData.title !== undefined && activityData.title !== existing.title) {
+    if (
+      activityData.title !== undefined &&
+      activityData.title !== existing.title
+    ) {
       fieldChanges.title = {
         from: existing.title ?? null,
         to: activityData.title ?? null,
@@ -632,9 +637,7 @@ export class ActivitiesService {
         where,
         include: this.getIncludeOptions(),
         orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }],
-        ...(resolved.all
-          ? {}
-          : { skip: resolved.skip, take: resolved.take }),
+        ...(resolved.all ? {} : { skip: resolved.skip, take: resolved.take }),
       }),
       this.prisma.activity.count({ where }),
     ]);
@@ -695,9 +698,7 @@ export class ActivitiesService {
       where: { id: { in: ids } },
     });
     if (count !== ids.length) {
-      throw new NotFoundException(
-        'Uno o más usuarios asignados no existen',
-      );
+      throw new NotFoundException('Uno o más usuarios asignados no existen');
     }
   }
 

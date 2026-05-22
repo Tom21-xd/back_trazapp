@@ -36,9 +36,7 @@ export class NotificationsService {
       this.prisma.notification.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        ...(resolved.all
-          ? {}
-          : { skip: resolved.skip, take: resolved.take }),
+        ...(resolved.all ? {} : { skip: resolved.skip, take: resolved.take }),
       }),
       this.prisma.notification.count({ where }),
     ]);
@@ -120,8 +118,8 @@ export class NotificationsService {
     }
 
     // Push + Email en paralelo (best-effort, ninguno bloquea al otro)
-    const activityId =
-      (metadata as { activityId?: string } | undefined)?.activityId;
+    const activityId = (metadata as { activityId?: string } | undefined)
+      ?.activityId;
     const frontendUrl = this.config.get<string>('frontendUrl') ?? '';
     const url = activityId
       ? `${frontendUrl}/activities/${activityId}`

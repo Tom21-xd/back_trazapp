@@ -121,17 +121,11 @@ export class FilesService {
     });
 
     if (!assignment) {
-      throw new ForbiddenException(
-        'No tienes permisos sobre esta actividad',
-      );
+      throw new ForbiddenException('No tienes permisos sobre esta actividad');
     }
   }
 
-  async upload(
-    file: Express.Multer.File,
-    dto: UploadFileDto,
-    user: AuthUser,
-  ) {
+  async upload(file: Express.Multer.File, dto: UploadFileDto, user: AuthUser) {
     if (!file) {
       throw new BadRequestException('No se recibió ningún archivo');
     }

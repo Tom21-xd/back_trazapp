@@ -1,5 +1,18 @@
-import { Body, Controller, Post, HttpCode, HttpStatus, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Post,
+  Patch,
+  HttpCode,
+  HttpStatus,
+  Get,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import {
@@ -8,6 +21,8 @@ import {
   RefreshTokenDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  UpdateProfileDto,
+  ChangePasswordDto,
 } from './dto';
 import { Public, CurrentUser } from '../../common/decorators';
 
@@ -33,7 +48,10 @@ export class AuthController {
   @ApiOperation({ summary: 'Iniciar sesión' })
   @ApiResponse({ status: 200, description: 'Login exitoso' })
   @ApiResponse({ status: 401, description: 'Credenciales inválidas' })
-  @ApiResponse({ status: 429, description: 'Demasiados intentos, espera un momento' })
+  @ApiResponse({
+    status: 429,
+    description: 'Demasiados intentos, espera un momento',
+  })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
@@ -68,7 +86,9 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Reestablecer contraseña con token recibido por email' })
+  @ApiOperation({
+    summary: 'Reestablecer contraseña con token recibido por email',
+  })
   @ApiResponse({ status: 200, description: 'Contraseña actualizada' })
   @ApiResponse({ status: 400, description: 'Token inválido o expirado' })
   resetPassword(@Body() dto: ResetPasswordDto) {
@@ -90,5 +110,33 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Perfil del usuario' })
   getProfile(@CurrentUser() user: any) {
     return user;
+  }
+
+  @Patch('me')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar mi perfil (nombre, teléfono, avatar)' })
+  @ApiResponse({ status: 200, description: 'Perfil actualizado' })
+  updateProfile(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.authService.updateProfile(userId, dto);
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Cambiar mi contraseña (requiere la actual)' })
+  @ApiResponse({ status: 200, description: 'Contraseña actualizada' })
+  @ApiResponse({ status: 400, description: 'Contraseña actual incorrecta' })
+  changePassword(
+    @CurrentUser('id') userId: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(
+      userId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
   }
 }

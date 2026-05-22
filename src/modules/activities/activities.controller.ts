@@ -19,11 +19,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { ActivitiesService } from './activities.service';
-import {
-  CreateActivityDto,
-  UpdateActivityDto,
-  AssignUsersDto,
-} from './dto';
+import { CreateActivityDto, UpdateActivityDto, AssignUsersDto } from './dto';
 import {
   CurrentUser,
   RequirePermissions,
@@ -44,20 +40,33 @@ export class ActivitiesController {
   @ApiResponse({ status: 201, description: 'Actividad creada exitosamente' })
   @ApiResponse({ status: 404, description: 'Proyecto o etapa no encontrada' })
   @ApiResponse({ status: 403, description: 'No autorizado' })
-  create(
-    @Body() dto: CreateActivityDto,
-    @CurrentUser('id') userId: string,
-  ) {
+  create(@Body() dto: CreateActivityDto, @CurrentUser('id') userId: string) {
     return this.activitiesService.create(dto, userId);
   }
 
   @Get()
   @RequireAnyPermission('activity:read:own', 'activity:read:any')
   @ApiOperation({ summary: 'Obtener todas las actividades' })
-  @ApiQuery({ name: 'projectId', required: false, description: 'Filtrar por proyecto' })
-  @ApiQuery({ name: 'stageId', required: false, description: 'Filtrar por etapa' })
-  @ApiQuery({ name: 'assignedUserId', required: false, description: 'Filtrar por usuario asignado' })
-  @ApiQuery({ name: 'priority', required: false, description: 'Filtrar por prioridad (ALTA, MEDIA, BAJA)' })
+  @ApiQuery({
+    name: 'projectId',
+    required: false,
+    description: 'Filtrar por proyecto',
+  })
+  @ApiQuery({
+    name: 'stageId',
+    required: false,
+    description: 'Filtrar por etapa',
+  })
+  @ApiQuery({
+    name: 'assignedUserId',
+    required: false,
+    description: 'Filtrar por usuario asignado',
+  })
+  @ApiQuery({
+    name: 'priority',
+    required: false,
+    description: 'Filtrar por prioridad (ALTA, MEDIA, BAJA)',
+  })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
@@ -85,7 +94,10 @@ export class ActivitiesController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
-  @ApiResponse({ status: 200, description: 'Lista paginada de actividades asignadas' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista paginada de actividades asignadas',
+  })
   getMyActivities(
     @CurrentUser('id') userId: string,
     @Query('page') page?: string,
@@ -124,7 +136,9 @@ export class ActivitiesController {
   @Delete(':id')
   @RequirePermissions('activity:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Archivar actividad (soft-delete con trazabilidad)' })
+  @ApiOperation({
+    summary: 'Archivar actividad (soft-delete con trazabilidad)',
+  })
   @ApiParam({ name: 'id', description: 'ID de la actividad' })
   @ApiResponse({ status: 204, description: 'Actividad archivada' })
   @ApiResponse({ status: 404, description: 'Actividad no encontrada' })
@@ -156,7 +170,10 @@ export class ActivitiesController {
   @ApiParam({ name: 'id', description: 'ID de la actividad' })
   @ApiParam({ name: 'userId', description: 'ID del usuario a desasignar' })
   @ApiResponse({ status: 204, description: 'Usuario desasignado' })
-  @ApiResponse({ status: 404, description: 'Actividad o asignación no encontrada' })
+  @ApiResponse({
+    status: 404,
+    description: 'Actividad o asignación no encontrada',
+  })
   @ApiResponse({ status: 403, description: 'No autorizado' })
   unassignUser(
     @Param('id') activityId: string,
@@ -173,7 +190,10 @@ export class ActivitiesController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'all', required: false, description: 'true: sin paginar' })
-  @ApiResponse({ status: 200, description: 'Lista paginada de eventos (más recientes primero)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista paginada de eventos (más recientes primero)',
+  })
   @ApiResponse({ status: 403, description: 'Sin acceso a esta actividad' })
   listEvents(
     @Param('id') id: string,
