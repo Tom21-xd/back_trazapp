@@ -31,11 +31,12 @@ describe('AppController', () => {
       expect(res.database).toBe('up');
     });
 
-    it('reporta degraded si la BD no responde', async () => {
+    it('lanza 503 con detalle degraded si la BD no responde', async () => {
       mockPrisma.$queryRaw.mockRejectedValue(new Error('connection refused'));
-      const res = await appController.health();
-      expect(res.status).toBe('degraded');
-      expect(res.database).toBe('down');
+      await expect(appController.health()).rejects.toMatchObject({
+        status: 503,
+        response: { status: 'degraded', database: 'down' },
+      });
     });
   });
 });

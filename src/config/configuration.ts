@@ -31,4 +31,12 @@ export default () => ({
     pass: process.env.SMTP_PASS,
     from: process.env.EMAIL_FROM || 'TrazApp <no-reply@trazapp.local>',
   },
+  retention: {
+    // Días tras los cuales se purgan datos (0 = no purgar esa categoría).
+    notificationsReadDays:
+      parseInt(process.env.RETENTION_NOTIFICATIONS_READ_DAYS, 10) || 60,
+    notificationsAllDays:
+      parseInt(process.env.RETENTION_NOTIFICATIONS_DAYS, 10) || 180,
+    auditDays: parseInt(process.env.RETENTION_AUDIT_DAYS, 10) || 365,
+  },
 });

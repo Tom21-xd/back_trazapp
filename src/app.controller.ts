@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AppService } from './app.service';
 import { PrismaService } from './modules/prisma/prisma.service';
@@ -28,7 +28,6 @@ export class AppController {
   })
   @ApiResponse({ status: 503, description: 'BD no responde' })
   async health() {
-    const startedAt = process.uptime();
     let database: 'up' | 'down' = 'down';
     try {
       await this.prisma.$queryRaw`SELECT 1`;
@@ -36,12 +35,23 @@ export class AppController {
     } catch {
       database = 'down';
     }
-    return {
+
+    const mem = process.memoryUsage();
+    const toMb = (bytes: number) => Math.round((bytes / 1024 / 1024) * 10) / 10;
+    const payload = {
       status: database === 'up' ? 'ok' : 'degraded',
       timestamp: new Date().toISOString(),
-      uptime: Math.floor(startedAt),
+      uptime: Math.floor(process.uptime()),
       version: process.env.npm_package_version ?? '0.0.1',
       database,
+      memory: { rssMb: toMb(mem.rss), heapUsedMb: toMb(mem.heapUsed) },
     };
+
+    // Devolver 503 cuando la BD no responde para que los uptime monitors
+    // y balanceadores lo detecten como caído (no como 200 "ok").
+    if (database === 'down') {
+      throw new ServiceUnavailableException(payload);
+    }
+    return payload;
   }
 }

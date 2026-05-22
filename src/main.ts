@@ -6,7 +6,14 @@ import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const isProd = process.env.NODE_ENV === 'production';
+  const app = await NestFactory.create(AppModule, {
+    // En producción silenciamos debug/verbose; los logs van a stdout y la
+    // rotación la maneja journald/logrotate (ver DEPLOYMENT.md).
+    logger: isProd
+      ? ['error', 'warn', 'log']
+      : ['error', 'warn', 'log', 'debug', 'verbose'],
+  });
 
   // Cabeceras de seguridad. CSP desactivada (rompe Swagger UI) y CORP
   // en cross-origin porque la API se consume desde otro puerto/dominio.

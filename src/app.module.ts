@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './modules/prisma/prisma.module';
@@ -22,6 +23,8 @@ import { RolesModule } from './modules/roles/roles.module';
 import { ActivityEventsModule } from './modules/activity-events/activity-events.module';
 import { PushModule } from './modules/push/push.module';
 import { EmailModule } from './modules/email/email.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { JwtAuthGuard, PermissionsGuard } from './common/guards';
 import { HttpExceptionFilter } from './common/filters';
 import configuration from './config/configuration';
@@ -43,6 +46,7 @@ import { validate } from './config/env.validation';
         },
       ],
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -60,6 +64,8 @@ import { validate } from './config/env.validation';
     ActivityEventsModule,
     PushModule,
     EmailModule,
+    ReportsModule,
+    MaintenanceModule,
   ],
   controllers: [AppController],
   providers: [
